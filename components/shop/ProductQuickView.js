@@ -1,0 +1,152 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { formatRs } from "@/components/shop/shopData";
+import { useCart } from "@/context/CartContext";
+
+export default function ProductQuickView({ product, onClose }) {
+  const [qty, setQty] = useState(1);
+  const { addToCart } = useCart();
+
+  const handleEsc = useCallback(
+    (e) => {
+      if (e.key === "Escape") onClose();
+    },
+    [onClose],
+  );
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [handleEsc]);
+
+  if (!product) return null;
+
+  function handleAddToCart() {
+    addToCart(product, qty);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden
+      />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-200 shrink-0">
+          <h2 className="text-lg font-bold text-slate-900">Product Details</h2>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">
+          <div className="flex flex-col sm:flex-row gap-5 sm:gap-6">
+            {/* Image */}
+            <div className="sm:w-2/5 shrink-0">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-center aspect-square">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+                {product.name}
+              </h3>
+
+              <p className="text-sm text-slate-500 mt-1.5">
+                Product Code: <span className="font-medium text-slate-600">{product.productCode}</span>
+              </p>
+
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
+                  {formatRs(product.price)}
+                </p>
+              </div>
+
+              {/* Category / Brand */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex items-center bg-slate-100 text-slate-700 text-xs font-semibold px-2.5 py-1 rounded-md">
+                  {product.category}
+                </span>
+                <span className="inline-flex items-center bg-amber-100 text-amber-800 text-xs font-semibold px-2.5 py-1 rounded-md">
+                  {product.subcategory}
+                </span>
+              </div>
+
+              {/* Description */}
+              {product.description && (
+                <div className="mt-5">
+                  <p className="text-sm font-bold text-slate-800 mb-1.5">Description</p>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {product.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer - Quantity + Add to Cart */}
+        <div className="shrink-0 border-t border-slate-200 px-5 sm:px-6 py-4 bg-white rounded-b-xl">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white">
+              <button
+                type="button"
+                onClick={() => setQty((prev) => Math.max(1, prev - 1))}
+                className="w-10 h-11 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+                aria-label="Decrease quantity"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14" /></svg>
+              </button>
+              <span className="w-12 h-11 flex items-center justify-center text-base font-semibold text-slate-800 border-x border-slate-300">
+                {qty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setQty((prev) => prev + 1)}
+                className="w-10 h-11 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+                aria-label="Increase quantity"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+            </div>
+            <button
+              onClick={handleAddToCart}
+              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-semibold py-3.5 rounded-lg transition-all text-sm"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="21" r="1" />
+                <circle cx="20" cy="21" r="1" />
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+              </svg>
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
