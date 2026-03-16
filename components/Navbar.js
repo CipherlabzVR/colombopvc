@@ -164,7 +164,8 @@ export default function Navbar() {
     : "All Categories";
 
   return (
-    <nav className="bg-[#0D1B3E] px-4 sm:px-8 py-3 flex flex-wrap items-center justify-between gap-3 md:gap-6 mx-auto max-w-[1600px]">
+    <nav className="bg-[#0D1B3E] py-3">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 flex flex-wrap items-center justify-between gap-3 md:gap-6">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 shrink-0">
         <Image
@@ -587,6 +588,7 @@ export default function Navbar() {
           </div>
         </div>
       )}
+      </div>
     </nav>
   );
 }
