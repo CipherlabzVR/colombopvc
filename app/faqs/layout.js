@@ -1,6 +1,7 @@
 export const metadata = {
-  title: "FAQs | Colombo PVC Center",
-  description: "Frequently asked questions about Colombo PVC Center products, delivery, returns, and services.",
+  title: "FAQs",
+  description:
+    "Frequently asked questions about Colombo PVC products, delivery across Sri Lanka, returns, payments, and plumbing supplies.",
 };
 
 export default function FAQsLayout({ children }) {

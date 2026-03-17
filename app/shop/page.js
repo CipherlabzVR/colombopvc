@@ -2,8 +2,9 @@ import ShopClient from "@/components/shop/ShopClient";
 import { Suspense } from "react";
 
 export const metadata = {
-  title: "Shop | Colombo PVC",
-  description: "Browse Colombo PVC products by category and brand.",
+  title: "Shop PVC Pipes & Fittings",
+  description:
+    "Shop PVC pipes, fittings, solvent cement, and plumbing supplies in Sri Lanka. Anton, S-Lon, Arpico, Phoenix brands. SLS standards, Colombo delivery.",
 };
 
 export default function ShopPage() {
