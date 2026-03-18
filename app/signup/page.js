@@ -15,6 +15,7 @@ export default function SignUpPage() {
     confirmPassword: "",
   });
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,6 +24,10 @@ export default function SignUpPage() {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (submitError && (name === "email" || name === "phone")) {
+      setSubmitError("");
+      setErrors((prev) => ({ ...prev, email: "", phone: "" }));
+    }
   };
 
   const validate = () => {
@@ -52,6 +57,7 @@ export default function SignUpPage() {
 
     setSubmitting(true);
     setErrors({});
+    setSubmitError("");
 
     const namePart = form.name.trim().split(/\s+/);
     const firstName = namePart[0] ?? "";
@@ -79,7 +85,16 @@ export default function SignUpPage() {
           message = suffix;
         }
       }
-      setErrors({ email: message });
+
+      const isDuplicateAccount = err?.code === "ACCOUNT_EXISTS" || /already exists|duplicate|already registered|already in use/i.test(message);
+      if (isDuplicateAccount) {
+        const friendlyMessage = "An account with this email or phone number already exists. Please sign in or use different details.";
+        setSubmitError(friendlyMessage);
+        setErrors({ email: friendlyMessage, phone: friendlyMessage });
+      } else {
+        setSubmitError(message);
+        setErrors({ email: message });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -105,6 +120,12 @@ export default function SignUpPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Create Account</h1>
             <p className="text-slate-600 text-sm mt-2">Join Colombo PVC Center to track orders and more</p>
           </div>
+
+          {submitError && (
+            <div className="mb-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-sm" role="alert">
+              {submitError}
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

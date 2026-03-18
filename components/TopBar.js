@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getAllTopBarNotifications } from "@/lib/topBarApi";
 
-const FALLBACK_MESSAGE = "Get Upto 25% Cashback: GET25OFF";
+const FALLBACK_MESSAGE = "Welcome Colombo PVC Center";
 const ROTATE_INTERVAL_MS = 5000;
 
 function formatDateRange(startDate, endDate) {

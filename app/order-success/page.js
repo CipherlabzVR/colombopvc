@@ -6,7 +6,26 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { jsPDF } from "jspdf";
 import { formatRs } from "@/components/shop/shopData";
-import { PAYMENT_OPTION_LABELS } from "@/lib/checkoutApi";
+import {
+  PAYMENT_OPTION_LABELS,
+  getOnlineOrdersByCustomerId,
+  getAllCheckoutAddressByCustomerId,
+} from "@/lib/checkoutApi";
+import { getAllECommerceCustomers } from "@/lib/customerApi";
+
+const AUTH_STORAGE_KEY = "colombo_pvc_user";
+
+function getStoredUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && (data.email || data.name || data.customerId != null) ? data : null;
+  } catch {
+    return null;
+  }
+}
 
 function getPaymentLabel(value) {
   if (value == null) return "—";
@@ -17,20 +36,219 @@ function getPaymentLabel(value) {
   return String(value);
 }
 
+/** Normalize API order (checkoutAddress, customer, lines, etc.) to display shape. */
+function normalizeOrderFromApi(apiOrder, orderIdForFallback) {
+  const addr = apiOrder.checkoutAddress ?? apiOrder.CheckoutAddress ?? {};
+  const cust = apiOrder.customer ?? apiOrder.Customer ?? addr.customer ?? addr.Customer ?? {};
+  let addressLine1 = addr.addressLine1 ?? addr.AddressLine1 ?? apiOrder.addressLine1 ?? apiOrder.AddressLine1 ?? "";
+  let addressLine2 = addr.addressLine2 ?? addr.AddressLine2 ?? apiOrder.addressLine2 ?? apiOrder.AddressLine2 ?? "";
+  let addressLine3 = addr.addressLine3 ?? addr.AddressLine3 ?? apiOrder.addressLine3 ?? apiOrder.AddressLine3 ?? "";
+  const lines = apiOrder.lines ?? apiOrder.Lines ?? [];
+  let firstName = cust.firstName ?? cust.FirstName ?? apiOrder.customerFirstName ?? apiOrder.CustomerFirstName ?? "";
+  let lastName = cust.lastName ?? cust.LastName ?? apiOrder.customerLastName ?? apiOrder.CustomerLastName ?? "";
+  const customerName = cust.fullName ?? cust.FullName ?? apiOrder.customerName ?? apiOrder.CustomerName ?? "";
+  let [parsedFirst, parsedLast] = customerName ? customerName.trim().split(/\s+/, 2) : [firstName, lastName];
+  let phone = addr.mobileNo ?? addr.MobileNo ?? cust.mobileNo ?? cust.MobileNo ?? cust.phone ?? cust.Phone ?? apiOrder.mobileNo ?? apiOrder.MobileNo ?? "";
+  let email = addr.email ?? addr.Email ?? cust.email ?? cust.Email ?? apiOrder.email ?? apiOrder.Email ?? "";
+  let notes = apiOrder.notes ?? apiOrder.Notes ?? "";
+
+  const fallback = (() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const keysToTry = [
+        orderIdForFallback && `order_${orderIdForFallback}`,
+        apiOrder.orderId != null && `order_${apiOrder.orderId}`,
+        apiOrder.orderNo && `order_${apiOrder.orderNo}`,
+        apiOrder.OrderId != null && `order_${apiOrder.OrderId}`,
+        apiOrder.OrderNo && `order_${apiOrder.OrderNo}`,
+      ].filter(Boolean);
+      for (const key of keysToTry) {
+        const raw = sessionStorage.getItem(key) ?? localStorage.getItem(key);
+        if (raw) {
+          const data = JSON.parse(raw);
+          sessionStorage.removeItem(key);
+          localStorage.removeItem(key);
+          return data;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  })();
+
+  if (fallback) {
+    if (!firstName && !parsedFirst) {
+      const parts = (fallback.firstName + " " + fallback.lastName).trim().split(/\s+/, 2);
+      firstName = parts[0] ?? "";
+      lastName = parts[1] ?? "";
+    }
+    if (!phone) phone = fallback.phone ?? "";
+    if (!email) email = fallback.email ?? "";
+    if (!addressLine1) addressLine1 = fallback.address ?? "";
+    if (!addressLine2) addressLine2 = fallback.city ?? "";
+    if (!addressLine3) addressLine3 = fallback.district ?? "";
+    if (!notes) notes = fallback.notes ?? "";
+  }
+
+  const fullAddress = [addressLine1, addressLine2, addressLine3].filter(Boolean).join(", ");
+  return {
+    orderId: apiOrder.orderId ?? apiOrder.orderNo ?? apiOrder.OrderId ?? apiOrder.OrderNo,
+    orderNo: apiOrder.orderNo ?? apiOrder.OrderNo ?? apiOrder.orderId ?? apiOrder.OrderId,
+    date: apiOrder.createdOn ?? apiOrder.CreatedOn ?? apiOrder.date ?? new Date().toISOString(),
+    customer: {
+      firstName: firstName || parsedFirst || "",
+      lastName: lastName || parsedLast || "",
+      phone,
+      email,
+      address: fullAddress || "—",
+      city: addressLine2 || "",
+      district: addressLine3 || "",
+      postalCode: addr.postalCode ?? addr.PostalCode ?? "",
+      paymentMethod: apiOrder.paymentOption ?? apiOrder.PaymentOption,
+      notes,
+    },
+    items: lines.map((line) => ({
+      name: line.productName ?? line.ProductName ?? "Item",
+      qty: line.quantity ?? line.Quantity ?? 1,
+      price: line.price ?? line.Price ?? 0,
+    })),
+    subtotal: apiOrder.subTotal ?? apiOrder.SubTotal ?? 0,
+    deliveryFee: apiOrder.deliveryCharge ?? apiOrder.DeliveryCharge ?? 0,
+    total: apiOrder.netTotal ?? apiOrder.NetTotal ?? 0,
+  };
+}
+
 function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("id");
+  const customerId = searchParams.get("customerId");
   const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("colombo_pvc_last_order");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.orderId === orderId) setOrder(parsed);
-      }
-    } catch { /* ignore */ }
-  }, [orderId]);
+    if (!orderId || !customerId) {
+      setOrder(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(false);
+    getOnlineOrdersByCustomerId(customerId)
+      .then(async (list) => {
+        const match = list.find(
+          (o) =>
+            String(o.orderId ?? o.OrderId) === orderId ||
+            String(o.orderNo ?? o.OrderNo ?? "").toLowerCase() === orderId.toLowerCase()
+        );
+        if (!match) {
+          setOrder(null);
+          return;
+        }
+        let normalized = normalizeOrderFromApi(match, orderId);
+        const orderCustomerId = match.customerId ?? match.CustomerId ?? customerId;
+
+        const loggedInUser = getStoredUser();
+        const isCurrentUserOrder =
+          loggedInUser?.customerId != null &&
+          orderCustomerId != null &&
+          Number(loggedInUser.customerId) === Number(orderCustomerId);
+
+        if (isCurrentUserOrder && (loggedInUser.firstName || loggedInUser.lastName || loggedInUser.name)) {
+          const first = (loggedInUser.firstName ?? "").trim();
+          const last = (loggedInUser.lastName ?? "").trim();
+          const fullName = (loggedInUser.name ?? "").trim();
+          const [parsedFirst, parsedLast] =
+            first || last ? [first, last] : fullName ? fullName.split(/\s+/, 2) : ["", ""];
+          if (parsedFirst || parsedLast) {
+            normalized = {
+              ...normalized,
+              customer: {
+                ...normalized.customer,
+                firstName: parsedFirst || normalized.customer.firstName,
+                lastName: parsedLast || normalized.customer.lastName,
+              },
+            };
+          }
+        } else if (orderCustomerId) {
+          try {
+            const res = await getAllECommerceCustomers({ maxResultCount: 100 });
+            const customers = Array.isArray(res?.items) ? res.items : [];
+            let cust = customers.find(
+              (c) => Number(c.id ?? c.Id) === Number(orderCustomerId)
+            );
+            if (!cust && (normalized.customer.email || normalized.customer.phone)) {
+              const email = (normalized.customer.email ?? "").trim().toLowerCase();
+              const phone = (normalized.customer.phone ?? "").replace(/\s/g, "");
+              cust = customers.find(
+                (c) =>
+                  (email && (c.email ?? c.Email ?? "").toLowerCase() === email) ||
+                  (phone && (c.mobileNo ?? c.MobileNo ?? "").replace(/\s/g, "") === phone)
+              );
+            }
+            if (cust) {
+              const first = (cust.firstName ?? cust.FirstName ?? "").trim();
+              const last = (cust.lastName ?? cust.LastName ?? "").trim();
+              if (first || last) {
+                normalized = {
+                  ...normalized,
+                  customer: {
+                    ...normalized.customer,
+                    firstName: first || normalized.customer.firstName,
+                    lastName: last || normalized.customer.lastName,
+                  },
+                };
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        const needsAddress =
+          !normalized.customer.address ||
+          normalized.customer.address === "—" ||
+          (!normalized.customer.firstName && !normalized.customer.lastName);
+        if (needsAddress) {
+          try {
+            const addresses = await getAllCheckoutAddressByCustomerId(customerId);
+            const addrId =
+              match.checkoutAddressId ??
+              match.CheckoutAddressId ??
+              match.checkoutAddress?.id ??
+              match.checkoutAddress?.Id;
+            const addr = addrId
+              ? addresses.find(
+                  (a) =>
+                    Number(a.id ?? a.Id ?? a.internalId ?? a.InternalId) === Number(addrId)
+                )
+              : addresses[addresses.length - 1];
+            if (addr) {
+              const a1 = addr.addressLine1 ?? addr.AddressLine1 ?? "";
+              const a2 = addr.addressLine2 ?? addr.AddressLine2 ?? "";
+              const a3 = addr.addressLine3 ?? addr.AddressLine3 ?? "";
+              const fullAddr = [a1, a2, a3].filter(Boolean).join(", ");
+              normalized = {
+                ...normalized,
+                customer: {
+                  ...normalized.customer,
+                  phone: normalized.customer.phone || (addr.mobileNo ?? addr.MobileNo ?? ""),
+                  email: normalized.customer.email || (addr.email ?? addr.Email ?? ""),
+                  address: fullAddr || normalized.customer.address,
+                  city: normalized.customer.city || a2,
+                  district: normalized.customer.district || a3,
+                  postalCode: normalized.customer.postalCode || (addr.postalCode ?? addr.PostalCode ?? ""),
+                },
+              };
+            }
+          } catch { /* ignore */ }
+        }
+        setOrder(normalized);
+      })
+      .catch(() => {
+        setError(true);
+        setOrder(null);
+      })
+      .finally(() => setLoading(false));
+  }, [orderId, customerId]);
 
   function downloadOrderPdf() {
     if (!order) return;
@@ -47,7 +265,7 @@ function OrderSuccessContent() {
 
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Order ID: ${order.orderId}`, margin, y);
+    doc.text(`Order ID: ${order.orderNo ?? order.orderId}`, margin, y);
     y += lineH + sectionGap;
 
     doc.setFont("helvetica", "bold");
@@ -141,13 +359,13 @@ function OrderSuccessContent() {
     doc.text("Total", margin, y);
     doc.text(formatRs(order.total), margin + 140, y);
 
-    doc.save(`Order-${order.orderId}.pdf`);
+    doc.save(`Order-${order.orderNo ?? order.orderId}.pdf`);
   }
 
   function buildWhatsAppLink() {
     if (!order) return "#";
     const lines = [
-      `*New Order - ${order.orderId}*`,
+      `*New Order - ${order.orderNo ?? order.orderId}*`,
       `Date: ${new Date(order.date).toLocaleString("en-LK")}`,
       "",
       `*Customer:* ${order.customer.firstName} ${order.customer.lastName}`,
@@ -168,15 +386,37 @@ function OrderSuccessContent() {
     return `https://wa.me/94987654321?text=${encodeURIComponent(lines)}`;
   }
 
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50">
+        <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-emerald-600 mb-4" />
+          <p className="text-slate-600">Loading order details...</p>
+        </div>
+      </main>
+    );
+  }
+
   if (!order) {
     return (
       <main className="min-h-screen bg-slate-50">
         <div className="max-w-2xl mx-auto px-4 py-16 text-center">
           <h1 className="text-2xl font-bold text-slate-900 mb-2">Order Not Found</h1>
-          <p className="text-slate-500 mb-6">We couldn&apos;t find the order details. It may have been cleared.</p>
-          <Link href="/shop" className="inline-flex items-center justify-center bg-[#FACC15] hover:bg-[#EAB308] text-slate-900 font-semibold px-6 py-2.5 rounded-md transition-colors">
-            Go to Shop
-          </Link>
+          <p className="text-slate-500 mb-6">
+            {!customerId
+              ? "This link has expired or is invalid. Use the Order Status page and enter your order number to track your order."
+              : error
+                ? "We couldn't load the order. Please try again later."
+                : "We couldn't find this order."}
+          </p>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <Link href="/order-status" className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-2.5 rounded-md transition-colors">
+              Order Status
+            </Link>
+            <Link href="/shop" className="inline-flex items-center justify-center bg-[#FACC15] hover:bg-[#EAB308] text-slate-900 font-semibold px-6 py-2.5 rounded-md transition-colors">
+              Go to Shop
+            </Link>
+          </div>
         </div>
       </main>
     );
@@ -213,7 +453,7 @@ function OrderSuccessContent() {
           </p>
           <div className="mt-4 inline-flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-lg">
             <span className="text-sm text-slate-500">Order ID:</span>
-            <span className="text-sm font-bold text-slate-900 font-mono">{order.orderId}</span>
+            <span className="text-sm font-bold text-slate-900 font-mono">{order.orderNo ?? order.orderId}</span>
           </div>
         </div>
 
@@ -224,14 +464,23 @@ function OrderSuccessContent() {
           <div className="grid sm:grid-cols-2 gap-4 mb-5">
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Customer</p>
-              <p className="text-sm font-medium text-slate-800">{order.customer.firstName} {order.customer.lastName}</p>
-              <p className="text-sm text-slate-600">{order.customer.phone}</p>
+              <p className="text-sm font-medium text-slate-800">
+                {(order.customer.firstName || order.customer.lastName)
+                  ? `${(order.customer.firstName ?? "").trim()} ${(order.customer.lastName ?? "").trim()}`.trim()
+                  : "—"}
+              </p>
+              {order.customer.phone && <p className="text-sm text-slate-600">{order.customer.phone}</p>}
               {order.customer.email && <p className="text-sm text-slate-600">{order.customer.email}</p>}
             </div>
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Delivery Address</p>
               <p className="text-sm text-slate-800">{order.customer.address}</p>
-              <p className="text-sm text-slate-600">{order.customer.city}, {order.customer.district}{order.customer.postalCode ? ` ${order.customer.postalCode}` : ""}</p>
+              {(order.customer.city || order.customer.district || order.customer.postalCode) && (
+                <p className="text-sm text-slate-600 mt-0.5">
+                  {[order.customer.city, order.customer.district].filter(Boolean).join(", ")}
+                  {order.customer.postalCode ? ` ${order.customer.postalCode}` : ""}
+                </p>
+              )}
             </div>
           </div>
 
