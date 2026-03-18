@@ -10,6 +10,7 @@ import {
   getAllCheckoutAddressByCustomerId,
   createCheckoutAddress,
   createOnlineOrder,
+  getOnlineOrdersByCustomerId,
   PAYMENT_OPTIONS,
   PAYMENT_OPTION_LABELS,
 } from "@/lib/checkoutApi";
@@ -266,38 +267,47 @@ export default function CheckoutPage() {
         CheckoutAddressId: checkoutAddressId,
       });
 
-      const apiOrderId = orderRes?.result?.OrderId ?? orderRes?.result?.orderId ?? orderRes?.data?.OrderId ?? orderRes?.OrderId ?? orderRes?.orderId;
+      const apiOrderId = orderRes?.result?.OrderId ?? orderRes?.result?.orderId ?? orderRes?.data?.OrderId ?? orderRes?.OrderId ?? orderRes?.orderId ?? orderRes?.items?.[0]?.orderId ?? orderRes?.items?.[0]?.OrderId;
+      let apiOrderNo = orderRes?.result?.OrderNo ?? orderRes?.result?.orderNo ?? orderRes?.data?.OrderNo ?? orderRes?.OrderNo ?? orderRes?.orderNo ?? orderRes?.items?.[0]?.orderNo ?? orderRes?.items?.[0]?.OrderNo ?? orderRes?.result?.items?.[0]?.orderNo ?? orderRes?.result?.items?.[0]?.OrderNo;
       if (apiOrderId != null) orderIdDisplay = String(apiOrderId);
+      if (apiOrderNo != null && apiOrderNo !== "") orderIdDisplay = String(apiOrderNo);
 
-      const order = {
-        orderId: orderIdDisplay,
-        apiOrderId: apiOrderId != null ? Number(apiOrderId) : undefined,
-        date: new Date().toISOString(),
-        customer: { ...form },
-        items: itemsForCheckout.map((i) => ({
-          name: i.name,
-          slug: i.slug,
-          price: i.price,
-          qty: i.qty,
-          category: i.category,
-          subcategory: i.subcategory,
-        })),
-        subtotal: totalPrice,
-        deliveryFee,
-        total: grandTotal,
-        status: "pending",
-      };
-
-      try {
-        const existing = JSON.parse(localStorage.getItem("colombo_pvc_orders") || "[]");
-        existing.push(order);
-        localStorage.setItem("colombo_pvc_orders", JSON.stringify(existing));
-        localStorage.setItem("colombo_pvc_last_order", JSON.stringify(order));
-      } catch { /* ignore */ }
+      // If create response didn't include orderNo, fetch customer orders to get it (API returns OrderNo from GetOnlineOrdersByCustomerId)
+      if ((apiOrderNo == null || apiOrderNo === "") && customerId != null && apiOrderId != null) {
+        try {
+          const list = await getOnlineOrdersByCustomerId(customerId);
+          const created = list.find(
+            (o) => Number(o.orderId ?? o.OrderId) === Number(apiOrderId)
+          );
+          const no = created?.orderNo ?? created?.OrderNo;
+          if (no != null && no !== "") {
+            apiOrderNo = String(no);
+            orderIdDisplay = apiOrderNo;
+          }
+        } catch { /* ignore */ }
+      }
 
       itemsForCheckout.forEach((i) => removeFromCart(i.slug));
       setCheckoutSelection(null);
-      router.push(`/order-success?id=${orderIdDisplay}`);
+      try {
+        const checkoutSnapshot = {
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim().replace(/\s/g, ""),
+          email: form.email.trim(),
+          address: form.address.trim(),
+          city: form.city.trim(),
+          district: form.district.trim(),
+          postalCode: (form.postalCode ?? "").trim(),
+          notes: (form.notes ?? "").trim(),
+        };
+        const key = `order_${orderIdDisplay}`;
+        sessionStorage.setItem(key, JSON.stringify(checkoutSnapshot));
+        localStorage.setItem(key, JSON.stringify(checkoutSnapshot));
+      } catch { /* ignore */ }
+      const query = new URLSearchParams({ id: orderIdDisplay });
+      if (customerId != null) query.set("customerId", String(customerId));
+      router.push(`/order-success?${query.toString()}`);
     } catch (err) {
       const msg = err?.message ?? "Failed to place order. Please try again.";
       setErrors({ form: msg.replace(/^API error \d+: /i, "").trim() });

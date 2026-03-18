@@ -69,7 +69,7 @@ export default function CartPage() {
                       <img src={item.image} alt={item.name} className="w-full h-full object-contain p-1" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <Link href={`/shop/${item.slug}`} className="text-sm font-medium text-slate-800 hover:text-emerald-700 line-clamp-2 transition-colors">
+                      <Link href={`/shop/${item.baseSlug ?? item.slug}`} className="text-sm font-medium text-slate-800 hover:text-emerald-700 line-clamp-2 transition-colors">
                         {item.name}
                       </Link>
                       <p className="text-xs text-slate-500 mt-0.5">{item.category} &bull; {item.subcategory}</p>
@@ -101,7 +101,7 @@ export default function CartPage() {
                         <img src={item.image} alt={item.name} className="w-full h-full object-contain p-1" />
                       </div>
                       <div className="min-w-0">
-                        <Link href={`/shop/${item.slug}`} className="text-sm font-medium text-slate-800 hover:text-emerald-700 line-clamp-1 transition-colors">
+                        <Link href={`/shop/${item.baseSlug ?? item.slug}`} className="text-sm font-medium text-slate-800 hover:text-emerald-700 line-clamp-1 transition-colors">
                           {item.name}
                         </Link>
                         <p className="text-xs text-slate-500 mt-0.5">{item.category} &bull; {item.subcategory}</p>

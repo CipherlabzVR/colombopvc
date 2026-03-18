@@ -254,7 +254,7 @@ export function formatRs(value) {
 
 /**
  * Map API item (GetAllItemsForWeb) to shop product shape for grid, quick view, and cart.
- * @param {Object} item - API item (id, name, code, averagePrice, productImage, description, categoryId, subCategoryId, ...)
+ * @param {Object} item - API item (id, name, code, averagePrice, productImage, description, categoryId, subCategoryId, itemSubImages, ...)
  * @param {string} [categoryName]
  * @param {string} [subCategoryName]
  */
@@ -264,6 +264,16 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     typeof item.averagePrice === "string"
       ? parseFloat(item.averagePrice)
       : Number(item.averagePrice);
+  const subImages = Array.isArray(item.itemSubImages)
+    ? item.itemSubImages
+        .filter((s) => s && (s.imgUrl || s.imageUrl))
+        .map((s) => ({
+          id: s.id,
+          url: s.imgUrl ?? s.imageUrl ?? "",
+          description: s.description ?? "",
+          price: s.price,
+        }))
+    : [];
   return {
     id: item.id,
     slug: `item-${item.id}`,
@@ -271,6 +281,7 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     productCode: item.code ?? "",
     price: Number.isFinite(price) ? price : 0,
     image: item.productImage ?? "",
+    itemSubImages: subImages,
     category: categoryName,
     subcategory: subCategoryName,
     description: item.description ?? "",

@@ -22,31 +22,6 @@ function getStoredUser() {
   }
 }
 
-function getOrderFromLocalStorage(orderId) {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("colombo_pvc_orders");
-    if (!raw) return null;
-    const list = JSON.parse(raw);
-    const found = list.find((o) => String(o.orderId) === String(orderId));
-    if (!found) return null;
-    return {
-      orderId: found.orderId,
-      orderNo: found.orderId,
-      orderStatus: 1,
-      orderDate: found.date,
-      netTotal: found.total,
-      subTotal: found.subtotal,
-      deliveryCharge: found.deliveryFee ?? 0,
-      customer: found.customer,
-      items: found.items,
-      fromLocalStorage: true,
-    };
-  } catch {
-    return null;
-  }
-}
-
 const STATUS_STEPS = [
   { value: 1, label: "Queued" },
   { value: 2, label: "In Progress" },
@@ -105,7 +80,7 @@ function StatusStepper({ currentStatus }) {
 }
 
 function OrderCard({ order, showDetails = true }) {
-  const status = order.orderStatus ?? order.OrderStatus ?? 1;
+  const status = Number(order.orderStatus ?? order.OrderStatus ?? 1);
   const orderId = order.orderId ?? order.id ?? order.OrderId;
   const orderNo = order.orderNo ?? order.orderNumber ?? order.OrderNo ?? orderId;
   const date = order.orderDate ?? order.date ?? order.CreatedOn ?? order.createdOn;
@@ -118,7 +93,7 @@ function OrderCard({ order, showDetails = true }) {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Order {order.fromLocalStorage ? "ID" : "No"}
+            Order No
           </p>
           <p className="text-lg font-bold text-slate-900 font-mono">{orderNo}</p>
         </div>
@@ -226,22 +201,12 @@ export default function OrderStatusPage() {
               String(o.OrderNo ?? o.orderNo ?? "").toLowerCase() === id.toLowerCase()
           );
           if (match) setLookupOrder(match);
-          else {
-            const local = getOrderFromLocalStorage(id);
-            if (local) setLookupOrder(local);
-            else setLookupError("Order not found. Check the order number or try again.");
-          }
+          else setLookupError("Order not found. Check the order number or try again.");
         })
-        .catch(() => {
-          const local = getOrderFromLocalStorage(id);
-          if (local) setLookupOrder(local);
-          else setLookupError("Could not load orders. Try again or check the order number.");
-        })
+        .catch(() => setLookupError("Could not load orders. Try again or check the order number."))
         .finally(() => setLookupLoading(false));
     } else {
-      const local = getOrderFromLocalStorage(id);
-      if (local) setLookupOrder(local);
-      else setLookupError("Order not found. Sign in to see all your orders, or check the order number from your confirmation.");
+      setLookupError("Sign in to look up your order by order number.");
       setLookupLoading(false);
     }
   }

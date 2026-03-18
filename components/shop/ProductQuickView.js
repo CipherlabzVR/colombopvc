@@ -1,12 +1,39 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { formatRs } from "@/components/shop/shopData";
 import { useCart } from "@/context/CartContext";
 
+/**
+ * Build ordered list of all product images: main productImage first, then itemSubImages.
+ * Each entry includes id, url, description, price (from itemSubImage when available).
+ */
+function getAllImages(product) {
+  if (!product) return [];
+  const main = product.image
+    ? [{ id: "main", url: product.image, description: product.name, price: null }]
+    : [];
+  const sub = Array.isArray(product.itemSubImages)
+    ? product.itemSubImages.filter((s) => s?.url).map((s) => ({
+        id: s.id ?? `sub-${s.url}`,
+        url: s.url,
+        description: s.description ?? "",
+        price: s.price != null && Number.isFinite(Number(s.price)) ? Number(s.price) : null,
+      }))
+    : [];
+  return [...main, ...sub];
+}
+
 export default function ProductQuickView({ product, onClose }) {
   const [qty, setQty] = useState(1);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addToCart } = useCart();
+
+  const allImages = useMemo(() => getAllImages(product), [product]);
+
+  useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [product?.id]);
 
   const handleEsc = useCallback(
     (e) => {
@@ -26,8 +53,36 @@ export default function ProductQuickView({ product, onClose }) {
 
   if (!product) return null;
 
+  const safeIndex = Math.min(selectedImageIndex, Math.max(0, allImages.length - 1));
+  const currentImage = allImages[safeIndex];
+  const hasMultipleImages = allImages.length > 1;
+
+  /** Effective price: sub-image price when selected and available, else product price */
+  const effectivePrice = currentImage?.price != null ? currentImage.price : product.price;
+  /** Effective description: sub-image description when selected and available, else product description */
+  const effectiveDescription =
+    safeIndex > 0 && currentImage?.description
+      ? currentImage.description
+      : product.description;
+
   function handleAddToCart() {
-    addToCart(product, qty);
+    const isVariant = safeIndex > 0 && currentImage;
+    const cartProduct = isVariant
+      ? {
+          ...product,
+          id: product.id,
+          price: effectivePrice,
+          image: currentImage.url,
+          name: currentImage.description
+            ? `${product.name} — ${currentImage.description}`
+            : product.name,
+          slug: `${product.slug}-variant-${currentImage.id ?? safeIndex}`,
+          baseSlug: product.slug,
+          variantDescription: currentImage.description,
+          itemSubImageId: currentImage.id,
+        }
+      : product;
+    addToCart(cartProduct, qty);
     onClose();
   }
 
@@ -59,15 +114,46 @@ export default function ProductQuickView({ product, onClose }) {
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5">
           <div className="flex flex-col sm:flex-row gap-5 sm:gap-6">
-            {/* Image */}
-            <div className="sm:w-2/5 shrink-0">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-center aspect-square">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                />
+            {/* Image gallery: main image + thumbnails when itemSubImages available */}
+            <div className="sm:w-2/5 shrink-0 flex flex-col gap-3">
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-center aspect-square overflow-hidden">
+                {currentImage ? (
+                  <img
+                    key={currentImage.id}
+                    src={currentImage.url}
+                    alt={currentImage.description || product.name}
+                    className="w-full h-full object-contain transition-opacity duration-200"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+                    No image
+                  </div>
+                )}
               </div>
+              {hasMultipleImages && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {allImages.map((img, idx) => (
+                    <button
+                      key={img.id}
+                      type="button"
+                      onClick={() => setSelectedImageIndex(idx)}
+                      className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden transition-all ${
+                        safeIndex === idx
+                          ? "border-slate-800 ring-2 ring-slate-800 ring-offset-1"
+                          : "border-slate-200 hover:border-slate-400"
+                      }`}
+                      aria-label={`View image ${idx + 1}`}
+                      aria-pressed={safeIndex === idx}
+                    >
+                      <img
+                        src={img.url}
+                        alt={img.description || ""}
+                        className="w-full h-full object-contain bg-white"
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Details */}
@@ -82,8 +168,11 @@ export default function ProductQuickView({ product, onClose }) {
 
               <div className="mt-4 border-t border-slate-100 pt-4">
                 <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
-                  {formatRs(product.price)}
+                  {formatRs(effectivePrice)}
                 </p>
+                {safeIndex > 0 && currentImage?.description && (
+                  <p className="text-xs text-slate-500 mt-1.5 italic">{currentImage.description}</p>
+                )}
               </div>
 
               {/* Category / Brand */}
@@ -96,12 +185,12 @@ export default function ProductQuickView({ product, onClose }) {
                 </span>
               </div>
 
-              {/* Description */}
-              {product.description && (
+              {/* Description: product description or selected sub-image description */}
+              {(effectiveDescription || product.description) && (
                 <div className="mt-5">
                   <p className="text-sm font-bold text-slate-800 mb-1.5">Description</p>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    {product.description}
+                    {effectiveDescription || product.description}
                   </p>
                 </div>
               )}
