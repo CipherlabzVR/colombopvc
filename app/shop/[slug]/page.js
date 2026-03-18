@@ -8,8 +8,13 @@ export function generateStaticParams() {
 
 export function generateMetadata({ params }) {
   const product = getShopProductBySlug(params.slug);
+  const title = product ? `${product.name} | Colombo PVC Center` : "Product | Colombo PVC Center";
+  const description =
+    product?.description?.slice(0, 160) ||
+    "PVC pipes and plumbing supplies in Sri Lanka. Colombo PVC Center.";
   return {
-    title: product ? `${product.name} | Colombo PVC` : "Product | Colombo PVC",
+    title,
+    description,
   };
 }
 
