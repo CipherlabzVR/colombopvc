@@ -33,7 +33,7 @@ export default function Footer() {
                 </span>
               </Link>
               <p className="text-slate-400 text-sm leading-relaxed max-w-sm mb-6 font-poppins">
-                Your trusted partner for quality PVC products, plumbing supplies, and professional tools in Colombo. Est. 2025.
+                Your trusted partner for PVC pipes, fittings, and plumbing supplies in Colombo and Sri Lanka. Quality brands, reliable delivery. Est. 2025.
               </p>
               <div className="flex gap-3">
                 <a
