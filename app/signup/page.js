@@ -70,6 +70,7 @@ export default function SignUpPage() {
         email: form.email.trim(),
         mobileNo: form.phone.replace(/\s/g, ""),
         password: form.password,
+        validateCustomer: true,
       });
 
       router.push("/signin?registered=1");
