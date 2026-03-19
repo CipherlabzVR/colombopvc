@@ -33,7 +33,7 @@ export default function ClientsSection() {
           {[...brands, ...brands].map((brand, i) => (
             <div
               key={`${brand.name}-${i}`}
-              className="shrink-0 w-40 sm:w-48 md:w-56 h-28 sm:h-32 md:h-36 bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex items-center justify-center overflow-hidden hover:shadow-md transition-shadow"
+              className="shrink-0 w-28 sm:w-32 md:w-36 aspect-square bg-white border border-slate-200 rounded-lg shadow-sm p-4 flex items-center justify-center overflow-hidden hover:shadow-md transition-shadow"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

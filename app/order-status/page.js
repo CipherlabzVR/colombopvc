@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ORDER_STATUS_LABELS,
   getOnlineOrdersByCustomerId,
+  getOnlineOrderByOrderIdOrOrderNo,
 } from "@/lib/checkoutApi";
 import { formatRs } from "@/components/shop/shopData";
 
@@ -131,11 +132,13 @@ function OrderCard({ order, showDetails = true }) {
               Total: {formatRs(total)}
             </p>
           )}
-          {customer && (customer.firstName || customer.lastName) && (
+          {(customer && (customer.firstName || customer.lastName)) || order.customerName ? (
             <p className="mt-1 text-sm text-slate-600">
-              {[customer.firstName, customer.lastName].filter(Boolean).join(" ")}
+              {customer && (customer.firstName || customer.lastName)
+                ? [customer.firstName, customer.lastName].filter(Boolean).join(" ")
+                : (order.customerName ?? "")}
             </p>
-          )}
+          ) : null}
               {Array.isArray(items) && items.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm text-slate-600">
               {items.slice(0, 3).map((item, idx) => (
@@ -192,23 +195,13 @@ export default function OrderStatusPage() {
     setLookupOrder(null);
     setLookupLoading(true);
 
-    if (user?.customerId) {
-      getOnlineOrdersByCustomerId(user.customerId)
-        .then((orders) => {
-          const match = orders.find(
-            (o) =>
-              String(o.OrderId ?? o.orderId) === id ||
-              String(o.OrderNo ?? o.orderNo ?? "").toLowerCase() === id.toLowerCase()
-          );
-          if (match) setLookupOrder(match);
-          else setLookupError("Order not found. Check the order number or try again.");
-        })
-        .catch(() => setLookupError("Could not load orders. Try again or check the order number."))
-        .finally(() => setLookupLoading(false));
-    } else {
-      setLookupError("Sign in to look up your order by order number.");
-      setLookupLoading(false);
-    }
+    getOnlineOrderByOrderIdOrOrderNo(id)
+      .then((order) => {
+        if (order) setLookupOrder(order);
+        else setLookupError("Order not found. Check the order number or try again.");
+      })
+      .catch(() => setLookupError("Could not load order. Try again or check the order number."))
+      .finally(() => setLookupLoading(false));
   }
 
   return (
@@ -224,7 +217,7 @@ export default function OrderStatusPage() {
           Order Status
         </h1>
         <p className="text-slate-600 text-sm mb-8">
-          Track your order by entering your Order ID below, or view your recent orders if you’re signed in.
+          Track your order by entering your Order ID or order number below. If you're signed in, you can also see your recent orders.
         </p>
 
         {/* Lookup by Order ID */}
