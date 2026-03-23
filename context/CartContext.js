@@ -87,6 +87,10 @@ export function CartProvider({ children }) {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const addToCart = useCallback((product, qty = 1) => {
+    if (product?.isOutOfStock) {
+      showToast("This item is out of stock");
+      return;
+    }
     dispatch({ type: "ADD", product, qty });
     showToast(`${product.name} added to cart`);
     openDrawer();

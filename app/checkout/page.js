@@ -200,7 +200,7 @@ export default function CheckoutPage() {
       NetTotal: grandTotal,
       DiscountRate: null,
       DiscountAmount: null,
-      OrderStatus: 0,
+      OrderStatus: 1,
       PaymentOption: paymentOption,
       Lines: lines,
     };

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { formatRs } from "@/components/shop/shopData";
 import { useCart } from "@/context/CartContext";
+import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 /**
  * Build ordered list of all product images: main productImage first, then itemSubImages.
@@ -11,7 +12,15 @@ import { useCart } from "@/context/CartContext";
 function getAllImages(product) {
   if (!product) return [];
   const main = product.image
-    ? [{ id: "main", url: product.image, description: product.name, price: null }]
+    ? [
+        {
+          id: "main",
+          url: product.image,
+          description: product.name,
+          price: null,
+          isOutOfStock: !!product.isOutOfStock,
+        },
+      ]
     : [];
   const sub = Array.isArray(product.itemSubImages)
     ? product.itemSubImages.filter((s) => s?.url).map((s) => ({
@@ -19,9 +28,15 @@ function getAllImages(product) {
         url: s.url,
         description: s.description ?? "",
         price: s.price != null && Number.isFinite(Number(s.price)) ? Number(s.price) : null,
+        isOutOfStock: !!s.isOutOfStock,
       }))
     : [];
   return [...main, ...sub];
+}
+
+function getFirstInStockImageIndex(images) {
+  const i = images.findIndex((img) => !img.isOutOfStock);
+  return i >= 0 ? i : 0;
 }
 
 export default function ProductQuickView({ product, onClose }) {
@@ -32,8 +47,11 @@ export default function ProductQuickView({ product, onClose }) {
   const allImages = useMemo(() => getAllImages(product), [product]);
 
   useEffect(() => {
-    setSelectedImageIndex(0);
-  }, [product?.id]);
+    if (!product) return;
+    const images = getAllImages(product);
+    setSelectedImageIndex(getFirstInStockImageIndex(images));
+    setQty(1);
+  }, [product]);
 
   const handleEsc = useCallback(
     (e) => {
@@ -59,14 +77,20 @@ export default function ProductQuickView({ product, onClose }) {
 
   /** Effective price: sub-image price when selected and available, else product price */
   const effectivePrice = currentImage?.price != null ? currentImage.price : product.price;
-  /** Effective description: sub-image description when selected and available, else product description */
+  /** Effective description: sub-image description when selected (not main slot), else product description */
   const effectiveDescription =
-    safeIndex > 0 && currentImage?.description
+    currentImage?.id !== "main" && currentImage?.description
       ? currentImage.description
       : product.description;
 
+  const allGalleryOptionsOutOfStock =
+    allImages.length > 0 && allImages.every((img) => img.isOutOfStock);
+
   function handleAddToCart() {
-    const isVariant = safeIndex > 0 && currentImage;
+    if (currentImage?.isOutOfStock) return;
+    const isVariant = currentImage && currentImage.id !== "main";
+    const variantId =
+      typeof currentImage.id === "number" ? currentImage.id : safeIndex;
     const cartProduct = isVariant
       ? {
           ...product,
@@ -76,12 +100,18 @@ export default function ProductQuickView({ product, onClose }) {
           name: currentImage.description
             ? `${product.name} — ${currentImage.description}`
             : product.name,
-          slug: `${product.slug}-variant-${currentImage.id ?? safeIndex}`,
+          slug: `${product.slug}-variant-${variantId}`,
           baseSlug: product.slug,
           variantDescription: currentImage.description,
-          itemSubImageId: currentImage.id,
+          itemSubImageId: typeof currentImage.id === "number" ? currentImage.id : undefined,
+          isOutOfStock: false,
         }
-      : product;
+      : {
+          ...product,
+          image: currentImage?.url || product.image,
+          price: effectivePrice,
+          isOutOfStock: false,
+        };
     addToCart(cartProduct, qty);
     onClose();
   }
@@ -116,14 +146,19 @@ export default function ProductQuickView({ product, onClose }) {
           <div className="flex flex-col sm:flex-row gap-5 sm:gap-6">
             {/* Image gallery: main image + thumbnails when itemSubImages available */}
             <div className="sm:w-2/5 shrink-0 flex flex-col gap-3">
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-center aspect-square overflow-hidden">
+              <div className="relative bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-center aspect-square overflow-hidden">
                 {currentImage ? (
-                  <img
-                    key={currentImage.id}
-                    src={currentImage.url}
-                    alt={currentImage.description || product.name}
-                    className="w-full h-full object-contain transition-opacity duration-200"
-                  />
+                  <>
+                    <img
+                      key={currentImage.id}
+                      src={currentImage.url}
+                      alt={currentImage.description || product.name}
+                      className={`w-full h-full object-contain transition-opacity duration-200 ${
+                        currentImage.isOutOfStock ? "opacity-55" : ""
+                      }`}
+                    />
+                    {currentImage.isOutOfStock && <OutOfStockOverlay />}
+                  </>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
                     No image
@@ -137,19 +172,26 @@ export default function ProductQuickView({ product, onClose }) {
                       key={img.id}
                       type="button"
                       onClick={() => setSelectedImageIndex(idx)}
-                      className={`shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden transition-all ${
+                      className={`relative shrink-0 w-14 h-14 rounded-lg border-2 overflow-hidden transition-all ${
                         safeIndex === idx
                           ? "border-slate-800 ring-2 ring-slate-800 ring-offset-1"
                           : "border-slate-200 hover:border-slate-400"
                       }`}
-                      aria-label={`View image ${idx + 1}`}
+                      aria-label={`View image ${idx + 1}${img.isOutOfStock ? " (out of stock)" : ""}`}
                       aria-pressed={safeIndex === idx}
                     >
                       <img
                         src={img.url}
                         alt={img.description || ""}
-                        className="w-full h-full object-contain bg-white"
+                        className={`w-full h-full object-contain bg-white ${
+                          img.isOutOfStock ? "opacity-50 grayscale-[0.35]" : ""
+                        }`}
                       />
+                      {img.isOutOfStock && (
+                        <span className="absolute inset-x-0 bottom-0 bg-rose-700/95 text-white text-[8px] font-extrabold leading-tight py-0.5 px-0.5 text-center uppercase tracking-tighter">
+                          OOS
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -170,7 +212,14 @@ export default function ProductQuickView({ product, onClose }) {
                 <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
                   {formatRs(effectivePrice)}
                 </p>
-                {safeIndex > 0 && currentImage?.description && (
+                {currentImage?.isOutOfStock && (
+                  <p className="text-sm font-semibold text-rose-600 mt-2">
+                    {allGalleryOptionsOutOfStock
+                      ? "This product is out of stock."
+                      : "This Product is out of stock."}
+                  </p>
+                )}
+                {currentImage?.id !== "main" && currentImage?.description && (
                   <p className="text-xs text-slate-500 mt-1.5 italic">{currentImage.description}</p>
                 )}
               </div>
@@ -223,15 +272,17 @@ export default function ProductQuickView({ product, onClose }) {
               </button>
             </div>
             <button
+              type="button"
               onClick={handleAddToCart}
-              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-semibold py-3.5 rounded-lg transition-all text-sm"
+              disabled={!!currentImage?.isOutOfStock}
+              className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-semibold py-3.5 rounded-lg transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="9" cy="21" r="1" />
                 <circle cx="20" cy="21" r="1" />
                 <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
               </svg>
-              Add to Cart
+              {currentImage?.isOutOfStock ? "Out of Stock" : "Add to Cart"}
             </button>
           </div>
         </div>

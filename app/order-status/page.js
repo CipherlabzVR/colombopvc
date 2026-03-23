@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
+  ORDER_STATUS,
   ORDER_STATUS_LABELS,
+  completeOnlineOrderByCustomer,
   getOnlineOrdersByCustomerId,
   getOnlineOrderByOrderIdOrOrderNo,
 } from "@/lib/checkoutApi";
@@ -26,8 +28,9 @@ function getStoredUser() {
 const STATUS_STEPS = [
   { value: 1, label: "Queued" },
   { value: 2, label: "In Progress" },
-  { value: 3, label: "Served" },
-  { value: 4, label: "Completed" },
+  { value: 3, label: "Dispatched" },
+  { value: 4, label: "Delivered" },
+  { value: 5, label: "Completed" },
 ];
 
 function StatusStepper({ currentStatus }) {
@@ -80,7 +83,10 @@ function StatusStepper({ currentStatus }) {
   );
 }
 
-function OrderCard({ order, showDetails = true }) {
+function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated }) {
+  const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState("");
+
   const status = Number(order.orderStatus ?? order.OrderStatus ?? 1);
   const orderId = order.orderId ?? order.id ?? order.OrderId;
   const orderNo = order.orderNo ?? order.orderNumber ?? order.OrderNo ?? orderId;
@@ -88,6 +94,38 @@ function OrderCard({ order, showDetails = true }) {
   const total = order.netTotal ?? order.NetTotal ?? order.total;
   const customer = order.customer ?? {};
   const items = order.items ?? order.lines ?? order.Lines ?? [];
+
+  const orderCustomerId = Number(order.customerId ?? order.CustomerId);
+  const viewerId =
+    viewer?.customerId != null && viewer.customerId !== ""
+      ? Number(viewer.customerId)
+      : NaN;
+  const viewerEmail = (viewer?.email ?? "").trim();
+  const canMarkComplete =
+    viewer != null &&
+    Number.isFinite(viewerId) &&
+    Number.isFinite(orderCustomerId) &&
+    viewerId === orderCustomerId &&
+    viewerEmail.length > 0 &&
+    status === ORDER_STATUS.Delivered;
+
+  async function handleMarkComplete() {
+    if (!canMarkComplete || !orderId) return;
+    setMarkError("");
+    setMarking(true);
+    try {
+      await completeOnlineOrderByCustomer({
+        orderId,
+        customerId: viewerId,
+        email: viewerEmail,
+      });
+      onOrderUpdated?.();
+    } catch (e) {
+      setMarkError(e?.message ?? "Something went wrong.");
+    } finally {
+      setMarking(false);
+    }
+  }
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
@@ -100,13 +138,15 @@ function OrderCard({ order, showDetails = true }) {
         </div>
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-            status === 4
+            status === 5
               ? "bg-emerald-100 text-emerald-800"
-              : status === 3
-                ? "bg-blue-100 text-blue-800"
-                : status === 2
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-slate-100 text-slate-700"
+              : status === 4
+                ? "bg-violet-100 text-violet-800"
+                : status === 3
+                  ? "bg-sky-100 text-sky-800"
+                  : status === 2
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-slate-100 text-slate-700"
           }`}
         >
           {ORDER_STATUS_LABELS[status] ?? "Queued"}
@@ -114,6 +154,23 @@ function OrderCard({ order, showDetails = true }) {
       </div>
 
       <StatusStepper currentStatus={status} />
+
+      {canMarkComplete && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
+          <p className="text-sm text-slate-700 mb-3">
+            Received your delivery? Confirm here to mark this order as completed. This matches what the store sees in the admin panel.
+          </p>
+          <button
+            type="button"
+            onClick={handleMarkComplete}
+            disabled={marking}
+            className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-60"
+          >
+            {marking ? "Saving…" : "Mark order as complete"}
+          </button>
+          {markError ? <p className="mt-2 text-sm text-red-600">{markError}</p> : null}
+        </div>
+      )}
 
       {showDetails && (
         <>
@@ -183,6 +240,27 @@ export default function OrderStatusPage() {
       .catch(() => setMyOrders([]))
       .finally(() => setMyOrdersLoading(false));
   }, [user?.customerId]);
+
+  const viewerForCard =
+    user?.customerId != null && user?.email
+      ? { customerId: user.customerId, email: user.email }
+      : null;
+
+  function refreshOrdersAfterCustomerComplete() {
+    const id = searchId.trim();
+    if (id) {
+      getOnlineOrderByOrderIdOrOrderNo(id)
+        .then((o) => {
+          if (o) setLookupOrder(o);
+        })
+        .catch(() => {});
+    }
+    if (user?.customerId) {
+      getOnlineOrdersByCustomerId(user.customerId)
+        .then((list) => setMyOrders(Array.isArray(list) ? list : []))
+        .catch(() => {});
+    }
+  }
 
   function handleLookup(e) {
     e.preventDefault();
@@ -258,7 +336,12 @@ export default function OrderStatusPage() {
         {lookupOrder && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-900 mb-3">Order details</h2>
-            <OrderCard order={lookupOrder} showDetails={true} />
+            <OrderCard
+              order={lookupOrder}
+              showDetails={true}
+              viewer={viewerForCard}
+              onOrderUpdated={refreshOrdersAfterCustomerComplete}
+            />
           </div>
         )}
 
@@ -278,7 +361,12 @@ export default function OrderStatusPage() {
               <ul className="space-y-4">
                 {myOrders.map((order, idx) => (
                   <li key={order.id ?? order.orderId ?? order.OrderId ?? idx}>
-                    <OrderCard order={order} showDetails={true} />
+                    <OrderCard
+                      order={order}
+                      showDetails={true}
+                      viewer={viewerForCard}
+                      onOrderUpdated={refreshOrdersAfterCustomerComplete}
+                    />
                   </li>
                 ))}
               </ul>
