@@ -222,6 +222,7 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
 export default function OrderStatusPage() {
   const [user, setUser] = useState(null);
   const [searchId, setSearchId] = useState("");
+  const [lookupMobile, setLookupMobile] = useState("");
   const [lookupOrder, setLookupOrder] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState("");
@@ -248,8 +249,9 @@ export default function OrderStatusPage() {
 
   function refreshOrdersAfterCustomerComplete() {
     const id = searchId.trim();
-    if (id) {
-      getOnlineOrderByOrderIdOrOrderNo(id)
+    const mobile = lookupMobile.trim();
+    if (id && mobile) {
+      getOnlineOrderByOrderIdOrOrderNo(id, mobile)
         .then((o) => {
           if (o) setLookupOrder(o);
         })
@@ -265,20 +267,27 @@ export default function OrderStatusPage() {
   function handleLookup(e) {
     e.preventDefault();
     const id = searchId.trim();
+    const mobile = lookupMobile.trim();
     if (!id) {
       setLookupError("Please enter an order ID or order number.");
+      return;
+    }
+    if (!mobile) {
+      setLookupError("Mobile number is required.");
       return;
     }
     setLookupError("");
     setLookupOrder(null);
     setLookupLoading(true);
 
-    getOnlineOrderByOrderIdOrOrderNo(id)
+    getOnlineOrderByOrderIdOrOrderNo(id, mobile)
       .then((order) => {
         if (order) setLookupOrder(order);
         else setLookupError("Order not found. Check the order number or try again.");
       })
-      .catch(() => setLookupError("Could not load order. Try again or check the order number."))
+      .catch((err) => {
+        setLookupError(err?.message ?? "Could not load order. Try again.");
+      })
       .finally(() => setLookupLoading(false));
   }
 
@@ -295,24 +304,51 @@ export default function OrderStatusPage() {
           Order Status
         </h1>
         <p className="text-slate-600 text-sm mb-8">
-          Track your order by entering your Order ID or order number below. If you're signed in, you can also see your recent orders.
+          Track your order with your order number and the mobile number you used at checkout. If you&apos;re signed in,
+          you can also see your recent orders below.
         </p>
 
-        {/* Lookup by Order ID */}
+        {/* Lookup by Order ID + mobile */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 mb-8">
           <h2 className="text-lg font-bold text-slate-900 mb-3">Look up order</h2>
-          <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-              placeholder="Enter Order ID"
-              className="flex-1 min-w-0 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-            />
+          <form onSubmit={handleLookup} className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div className="min-w-0">
+                <label htmlFor="order-lookup-id" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Order ID or order number
+                </label>
+                <input
+                  id="order-lookup-id"
+                  type="text"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  placeholder="Enter Order ID"
+                  autoComplete="off"
+                  className="w-full px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="order-lookup-mobile" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Mobile number <span className="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="order-lookup-mobile"
+                  type="tel"
+                  inputMode="tel"
+                  value={lookupMobile}
+                  onChange={(e) => setLookupMobile(e.target.value)}
+                  placeholder="Enter mobile number used at checkout"
+                  autoComplete="tel"
+                  required
+                  aria-required="true"
+                  className="w-full px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
             <button
               type="submit"
               disabled={lookupLoading}
-              className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+              className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm w-full sm:w-auto sm:self-start"
             >
               {lookupLoading ? (
                 <>
