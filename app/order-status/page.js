@@ -8,6 +8,7 @@ import {
   completeOnlineOrderByCustomer,
   getOnlineOrdersByCustomerId,
   getOnlineOrderByOrderIdOrOrderNo,
+  submitOnlineOrderCustomerFeedback,
 } from "@/lib/checkoutApi";
 import { formatRs } from "@/components/shop/shopData";
 
@@ -86,6 +87,10 @@ function StatusStepper({ currentStatus }) {
 function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated }) {
   const [marking, setMarking] = useState(false);
   const [markError, setMarkError] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackErr, setFeedbackErr] = useState("");
 
   const status = Number(order.orderStatus ?? order.OrderStatus ?? 1);
   const orderId = order.orderId ?? order.id ?? order.OrderId;
@@ -109,6 +114,18 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
     viewerEmail.length > 0 &&
     status === ORDER_STATUS.Delivered;
 
+  const existingFeedback = String(
+    order.customerFeedback ?? order.CustomerFeedback ?? ""
+  ).trim();
+  const canAddFeedback =
+    viewer != null &&
+    Number.isFinite(viewerId) &&
+    Number.isFinite(orderCustomerId) &&
+    viewerId === orderCustomerId &&
+    viewerEmail.length > 0 &&
+    status === ORDER_STATUS.Completed &&
+    !existingFeedback;
+
   async function handleMarkComplete() {
     if (!canMarkComplete || !orderId) return;
     setMarkError("");
@@ -124,6 +141,32 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
       setMarkError(e?.message ?? "Something went wrong.");
     } finally {
       setMarking(false);
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    if (!orderId || !canAddFeedback) return;
+    const text = feedbackText.trim();
+    if (text.length < 5) {
+      setFeedbackErr("Please write at least a few words (5+ characters).");
+      return;
+    }
+    setFeedbackErr("");
+    setFeedbackBusy(true);
+    try {
+      await submitOnlineOrderCustomerFeedback({
+        orderId,
+        customerId: viewerId,
+        email: viewerEmail,
+        feedback: text,
+      });
+      setFeedbackOpen(false);
+      setFeedbackText("");
+      onOrderUpdated?.();
+    } catch (e) {
+      setFeedbackErr(e?.message ?? "Could not save feedback.");
+    } finally {
+      setFeedbackBusy(false);
     }
   }
 
@@ -170,6 +213,72 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
           </button>
           {markError ? <p className="mt-2 text-sm text-red-600">{markError}</p> : null}
         </div>
+      )}
+
+      {status === ORDER_STATUS.Completed && existingFeedback && viewerId === orderCustomerId && Number.isFinite(viewerId) ? (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/90 p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Your feedback</p>
+          <p className="text-sm text-slate-800 whitespace-pre-wrap">{existingFeedback}</p>
+        </div>
+      ) : null}
+
+      {canAddFeedback && !feedbackOpen && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setFeedbackOpen(true);
+              setFeedbackErr("");
+            }}
+            className="inline-flex items-center justify-center border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+          >
+            Add feedback
+          </button>
+        </div>
+      )}
+
+      {canAddFeedback && feedbackOpen && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
+          <p className="text-sm text-slate-700 mb-2 font-medium">Tell us how we did</p>
+          <textarea
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="Share your experience with this order…"
+            className="w-full px-3 py-2 text-sm text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y min-h-[100px]"
+          />
+          <p className="text-xs text-slate-500 mt-1">{feedbackText.length}/2000</p>
+          {feedbackErr ? <p className="mt-2 text-sm text-red-600">{feedbackErr}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleSubmitFeedback}
+              disabled={feedbackBusy || feedbackText.trim().length < 5}
+              className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+            >
+              {feedbackBusy ? "Sending…" : "Submit feedback"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFeedbackOpen(false);
+                setFeedbackText("");
+                setFeedbackErr("");
+              }}
+              disabled={feedbackBusy}
+              className="inline-flex items-center justify-center text-slate-600 text-sm font-medium px-4 py-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === ORDER_STATUS.Completed && !viewer && (
+        <p className="mt-4 text-sm text-slate-500">
+          Sign in to leave feedback on completed orders.
+        </p>
       )}
 
       {showDetails && (
