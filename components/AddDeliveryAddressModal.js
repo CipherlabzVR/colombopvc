@@ -1,13 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createCheckoutAddress } from "@/lib/checkoutApi";
+import { createCheckoutAddress, updateCheckoutAddress } from "@/lib/checkoutApi";
 import { DISTRICTS } from "@/lib/constants/districts";
 
 /**
  * Modal for logged-in users to add a delivery address and save to backend.
  * Maps: Address -> AddressLine1, City -> AddressLine2, District -> AddressLine3.
  */
+const emptyForm = {
+  addressLine1: "",
+  city: "",
+  district: "",
+  postalCode: "",
+  mobileNo: "",
+  email: "",
+};
+
 export default function AddDeliveryAddressModal({
   isOpen,
   onClose,
@@ -15,29 +24,35 @@ export default function AddDeliveryAddressModal({
   customerId,
   defaultPhone = "",
   defaultEmail = "",
+  /** When set, modal updates this address instead of creating a new one */
+  editRecord = null,
 }) {
-  const [form, setForm] = useState({
-    addressLine1: "",
-    city: "",
-    district: "",
-    postalCode: "",
-    mobileNo: "",
-    email: "",
-  });
+  const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState("");
 
   useEffect(() => {
     if (!isOpen) return;
-    setForm((prev) => ({
-      ...prev,
-      mobileNo: defaultPhone || prev.mobileNo,
-      email: defaultEmail || prev.email,
-    }));
     setErrors({});
     setApiError("");
-  }, [isOpen, defaultPhone, defaultEmail]);
+    if (editRecord && editRecord.id != null) {
+      setForm({
+        addressLine1: editRecord.addressLine1 ?? "",
+        city: editRecord.city ?? "",
+        district: editRecord.district ?? "",
+        postalCode: editRecord.postalCode ?? "",
+        mobileNo: String(editRecord.mobileNo ?? "").replace(/\s/g, "") || defaultPhone,
+        email: (editRecord.email ?? "").trim() || defaultEmail,
+      });
+    } else {
+      setForm({
+        ...emptyForm,
+        mobileNo: defaultPhone.replace(/\s/g, ""),
+        email: (defaultEmail || "").trim(),
+      });
+    }
+  }, [isOpen, defaultPhone, defaultEmail, editRecord]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -75,16 +90,42 @@ export default function AddDeliveryAddressModal({
     setApiError("");
 
     try {
-      await createCheckoutAddress({
-        CustomerId: Number(customerId),
-        AddressLine1: form.addressLine1.trim(),
-        AddressLine2: form.city.trim(),
-        AddressLine3: form.district.trim(),
-        MobileNo: form.mobileNo.trim().replace(/\s/g, ""),
-        Email: (form.email || "").trim(),
-        PostalCode: (form.postalCode || "").trim(),
-        IsActive: true,
-      });
+      const isEdit = editRecord != null && editRecord.id != null;
+      if (isEdit) {
+        const data = await updateCheckoutAddress({
+          Id: Number(editRecord.id),
+          CustomerId: Number(customerId),
+          AddressLine1: form.addressLine1.trim(),
+          AddressLine2: form.city.trim(),
+          AddressLine3: form.district.trim(),
+          MobileNo: form.mobileNo.trim().replace(/\s/g, ""),
+          Email: (form.email || "").trim(),
+          PostalCode: (form.postalCode || "").trim(),
+          IsActive: true,
+        });
+        const code = data?.statusCode ?? data?.StatusCode;
+        const ok = code === 200;
+        const failMsg = data?.message ?? data?.Message;
+        if (!ok && failMsg) {
+          setApiError(String(failMsg));
+          return;
+        }
+        if (!ok) {
+          setApiError("Could not update address. Please try again.");
+          return;
+        }
+      } else {
+        await createCheckoutAddress({
+          CustomerId: Number(customerId),
+          AddressLine1: form.addressLine1.trim(),
+          AddressLine2: form.city.trim(),
+          AddressLine3: form.district.trim(),
+          MobileNo: form.mobileNo.trim().replace(/\s/g, ""),
+          Email: (form.email || "").trim(),
+          PostalCode: (form.postalCode || "").trim(),
+          IsActive: true,
+        });
+      }
 
       const saved = {
         address: form.addressLine1.trim(),
@@ -93,10 +134,11 @@ export default function AddDeliveryAddressModal({
         postalCode: form.postalCode.trim(),
         phone: form.mobileNo.trim().replace(/\s/g, ""),
         email: form.email.trim(),
+        mode: isEdit ? "edit" : "add",
       };
       onSaved?.(saved);
       onClose?.();
-      setForm({ addressLine1: "", city: "", district: "", postalCode: "", mobileNo: "", email: "" });
+      setForm({ ...emptyForm });
       setErrors({});
     } catch (err) {
       const msg = err?.message ?? "Failed to save address. Please try again.";
@@ -129,7 +171,7 @@ export default function AddDeliveryAddressModal({
         <div className="p-6 sm:p-8">
           <div className="flex items-center justify-between mb-6">
             <h2 id="add-address-title" className="text-xl font-bold text-slate-900">
-              Add delivery address
+              {editRecord?.id != null ? "Edit delivery address" : "Add delivery address"}
             </h2>
             <button
               type="button"
@@ -252,6 +294,8 @@ export default function AddDeliveryAddressModal({
                     </svg>
                     Saving...
                   </>
+                ) : editRecord?.id != null ? (
+                  "Save changes"
                 ) : (
                   "Save address"
                 )}

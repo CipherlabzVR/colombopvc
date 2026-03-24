@@ -342,6 +342,15 @@ export default function OrderStatusPage() {
     setUser(getStoredUser());
   }, []);
 
+  /** Pre-fill lookup mobile from account when signed in (user can still edit). */
+  useEffect(() => {
+    const raw = user?.mobileNo;
+    if (raw == null || String(raw).trim() === "") return;
+    const phone = String(raw).replace(/\s/g, "");
+    if (!phone) return;
+    setLookupMobile((prev) => (prev.trim() === "" ? phone : prev));
+  }, [user?.mobileNo]);
+
   useEffect(() => {
     if (!user?.customerId) return;
     setMyOrdersLoading(true);

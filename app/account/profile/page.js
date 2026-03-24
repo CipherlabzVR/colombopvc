@@ -7,6 +7,8 @@ import {
   getECommerceCustomerProfileById,
   updateECommerceCustomerProfile,
 } from "@/lib/customerApi";
+import { getAllCheckoutAddressByCustomerId } from "@/lib/checkoutApi";
+import AddDeliveryAddressModal from "@/components/AddDeliveryAddressModal";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -59,6 +61,25 @@ function persistUserFromApi(stored, apiResult) {
   return next;
 }
 
+function checkoutAddressNumericId(addr) {
+  const id = addr?.id ?? addr?.Id;
+  return id != null ? Number(id) : null;
+}
+
+function addressToEditRecord(addr) {
+  const id = checkoutAddressNumericId(addr);
+  if (id == null || Number.isNaN(id)) return null;
+  return {
+    id,
+    addressLine1: addr.addressLine1 ?? addr.AddressLine1 ?? "",
+    city: addr.addressLine2 ?? addr.AddressLine2 ?? "",
+    district: addr.addressLine3 ?? addr.AddressLine3 ?? "",
+    postalCode: addr.postalCode ?? addr.PostalCode ?? "",
+    mobileNo: String(addr.mobileNo ?? addr.MobileNo ?? "").replace(/\s/g, ""),
+    email: (addr.email ?? addr.Email ?? "").trim(),
+  };
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const [storedUser, setStoredUser] = useState(null);
@@ -67,6 +88,11 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [formError, setFormError] = useState("");
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [addressModalEdit, setAddressModalEdit] = useState(null);
+  const [addressMessage, setAddressMessage] = useState("");
 
   const [form, setForm] = useState({
     firstName: "",
@@ -131,6 +157,25 @@ export default function ProfilePage() {
     setStoredUser(u);
     loadProfile(u);
   }, [router, loadProfile]);
+
+  const refreshSavedAddresses = useCallback(async () => {
+    if (!storedUser?.customerId) return;
+    setAddressesLoading(true);
+    setAddressMessage("");
+    try {
+      const list = await getAllCheckoutAddressByCustomerId(Number(storedUser.customerId));
+      setSavedAddresses(Array.isArray(list) ? list : []);
+    } catch {
+      setSavedAddresses([]);
+    } finally {
+      setAddressesLoading(false);
+    }
+  }, [storedUser?.customerId]);
+
+  useEffect(() => {
+    if (!storedUser?.customerId || loading) return;
+    refreshSavedAddresses();
+  }, [storedUser?.customerId, loading, refreshSavedAddresses]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -241,7 +286,7 @@ export default function ProfilePage() {
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
         .font-poppins { font-family: 'Poppins', sans-serif; }
       `}</style>
-      <div className="max-w-lg mx-auto px-4 py-10 font-poppins">
+      <div className="max-w-3xl mx-auto px-4 py-10 font-poppins">
         <nav className="text-sm text-slate-600 mb-6">
           <Link href="/" className="hover:underline">
             Home
@@ -253,7 +298,8 @@ export default function ProfilePage() {
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 sm:p-8">
           <h1 className="text-2xl font-bold text-[#0D1B3E] mb-1">My profile</h1>
           <p className="text-sm text-slate-600 mb-6">
-            Update your name, phone, or password. Your email is your sign-in address and cannot be changed here.
+            Update your name, phone, delivery addresses, or password. Your email is your sign-in address and cannot be
+            changed here.
           </p>
 
           {loadError && (
@@ -277,65 +323,137 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              <div>
-                <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-1">
-                  First name
-                </label>
-                <input
-                  id="firstName"
-                  name="firstName"
-                  value={form.firstName}
-                  onChange={handleChange}
-                  className={inputCls("firstName")}
-                  autoComplete="given-name"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-slate-700 mb-1">
+                    First name
+                  </label>
+                  <input
+                    id="firstName"
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleChange}
+                    className={inputCls("firstName")}
+                    autoComplete="given-name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-1">
+                    Last name
+                  </label>
+                  <input
+                    id="lastName"
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleChange}
+                    className={inputCls("lastName")}
+                    autoComplete="family-name"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={form.email}
+                    readOnly
+                    className="w-full px-3.5 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-md bg-slate-50 cursor-not-allowed"
+                    title="Contact support to change your email"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="mobileNo" className="block text-sm font-medium text-slate-700 mb-1">
+                    Mobile number
+                  </label>
+                  <input
+                    id="mobileNo"
+                    name="mobileNo"
+                    value={form.mobileNo}
+                    onChange={handleChange}
+                    className={inputCls("mobileNo")}
+                    autoComplete="tel"
+                    placeholder="07XXXXXXXX"
+                  />
+                </div>
               </div>
-              <div>
-                <label htmlFor="lastName" className="block text-sm font-medium text-slate-700 mb-1">
-                  Last name
-                </label>
-                <input
-                  id="lastName"
-                  name="lastName"
-                  value={form.lastName}
-                  onChange={handleChange}
-                  className={inputCls("lastName")}
-                  autoComplete="family-name"
-                />
-              </div>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  readOnly
-                  className="w-full px-3.5 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-md bg-slate-50 cursor-not-allowed"
-                  title="Contact support to change your email"
-                />
-              </div>
-              <div>
-                <label htmlFor="mobileNo" className="block text-sm font-medium text-slate-700 mb-1">
-                  Mobile number
-                </label>
-                <input
-                  id="mobileNo"
-                  name="mobileNo"
-                  value={form.mobileNo}
-                  onChange={handleChange}
-                  className={inputCls("mobileNo")}
-                  autoComplete="tel"
-                  placeholder="07XXXXXXXX"
-                />
+
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                  <p className="text-sm font-semibold text-slate-800">Delivery addresses</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddressModalEdit(null);
+                      setAddressModalOpen(true);
+                      setAddressMessage("");
+                    }}
+                    className="text-sm font-semibold text-[#0D1B3E] border border-[#0D1B3E]/30 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors w-full sm:w-auto"
+                  >
+                    Add address
+                  </button>
+                </div>
+                {addressMessage && (
+                  <div className="mb-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                    {addressMessage}
+                  </div>
+                )}
+                {addressesLoading ? (
+                  <p className="text-sm text-slate-500 py-2">Loading addresses…</p>
+                ) : savedAddresses.length === 0 ? (
+                  <p className="text-sm text-slate-600 py-1">
+                    No saved addresses yet. Add one for faster checkout.
+                  </p>
+                ) : (
+                  <ul className="grid gap-3 sm:grid-cols-2">
+                    {savedAddresses.map((addr) => {
+                      const id = checkoutAddressNumericId(addr);
+                      const line1 = addr.addressLine1 ?? addr.AddressLine1 ?? "";
+                      const line2 = addr.addressLine2 ?? addr.AddressLine2 ?? "";
+                      const line3 = addr.addressLine3 ?? addr.AddressLine3 ?? "";
+                      const postal = addr.postalCode ?? addr.PostalCode ?? "";
+                      const phone = String(addr.mobileNo ?? addr.MobileNo ?? "").replace(/\s/g, "");
+                      const key = id ?? `${line1}-${line2}-${line3}`;
+                      return (
+                        <li
+                          key={key}
+                          className="rounded-lg border border-slate-200 bg-slate-50/80 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 h-full min-h-0"
+                        >
+                          <div className="text-sm min-w-0">
+                            {line1 ? <p className="font-medium text-slate-900">{line1}</p> : null}
+                            <p className="text-slate-600 mt-0.5">
+                              {[line2, line3].filter(Boolean).join(", ")}
+                              {postal ? (line2 || line3 ? ` · ${postal}` : postal) : ""}
+                            </p>
+                            {phone ? <p className="text-slate-500 text-xs mt-1">Phone: {phone}</p> : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const rec = addressToEditRecord(addr);
+                              if (rec) {
+                                setAddressModalEdit(rec);
+                                setAddressModalOpen(true);
+                                setAddressMessage("");
+                              }
+                            }}
+                            className="shrink-0 text-sm font-semibold text-[#0D1B3E] border border-[#0D1B3E]/40 rounded-lg px-3 py-2 hover:bg-white transition-colors self-start"
+                          >
+                            Edit
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
 
               <div className="pt-4 border-t border-slate-100">
                 <p className="text-sm font-semibold text-slate-800 mb-3">Change password (optional)</p>
-                <div className="space-y-3">
-                  <div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
                     <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-700 mb-1">
                       Current password
                     </label>
@@ -399,6 +517,24 @@ export default function ProfilePage() {
           )}
         </div>
       </div>
+
+      {storedUser?.customerId != null && (
+        <AddDeliveryAddressModal
+          isOpen={addressModalOpen}
+          editRecord={addressModalEdit}
+          customerId={Number(storedUser.customerId)}
+          defaultPhone={form.mobileNo}
+          defaultEmail={form.email}
+          onClose={() => {
+            setAddressModalOpen(false);
+            setAddressModalEdit(null);
+          }}
+          onSaved={(saved) => {
+            refreshSavedAddresses();
+            setAddressMessage(saved?.mode === "edit" ? "Address updated." : "Address added.");
+          }}
+        />
+      )}
     </main>
   );
 }
