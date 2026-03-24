@@ -42,7 +42,8 @@ export default function ShopClient() {
   const [itemsLoading, setItemsLoading] = useState(true);
   const [itemsError, setItemsError] = useState(null);
 
-  const [expandedCategoryId, setExpandedCategoryId] = useState(selectedCategoryId ?? null);
+  /** All collapsed by default; expands when a category is selected (URL) or user opens a row. */
+  const [expandedCategoryId, setExpandedCategoryId] = useState(null);
   const [quickViewProduct, setQuickViewProduct] = useState(null);
   const [searchTerm, setSearchTerm] = useState(queryParam);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -113,9 +114,6 @@ export default function ShopClient() {
       .then((list) => {
         if (!cancelled) {
           setCategories(list);
-          if (list.length > 0 && expandedCategoryId == null) {
-            setExpandedCategoryId(list[0].categoryId);
-          }
         }
       })
       .catch((err) => {
@@ -127,9 +125,13 @@ export default function ShopClient() {
     return () => { cancelled = true; };
   }, []);
 
-  // Keep expanded in sync with selection
+  // Expand the active category when URL has a filter; collapse all when filters are cleared
   useEffect(() => {
-    if (selectedCategoryId != null) setExpandedCategoryId(selectedCategoryId);
+    if (selectedCategoryId != null) {
+      setExpandedCategoryId(selectedCategoryId);
+    } else {
+      setExpandedCategoryId(null);
+    }
   }, [selectedCategoryId]);
 
   // Fetch items when page, search (URL), category, or pageSize change

@@ -3,14 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
-import { formatRs } from "@/components/shop/shopData";
+import { formatRs, getPreferredInStockOffer, productToCartLine } from "@/components/shop/shopData";
+import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 export default function ProductDetail({ product }) {
   const [qty, setQty] = useState(1);
   const { addToCart } = useCart();
+  const offer = getPreferredInStockOffer(product);
 
   function handleAddToCart() {
-    addToCart(product, qty);
+    const line = productToCartLine(product);
+    if (!line) return;
+    addToCart(line, qty);
     setQty(1);
   }
 
@@ -33,13 +37,14 @@ export default function ProductDetail({ product }) {
 
         <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6 grid md:grid-cols-2 gap-6">
           {/* Image */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 flex items-center justify-center">
+          <div className="relative rounded-lg border border-slate-200 bg-slate-50 p-4 flex items-center justify-center overflow-hidden">
             <img
-              src={product.image}
+              src={offer.image || product.image}
               alt={product.name}
-              className="w-full max-h-[420px] object-contain"
+              className={`w-full max-h-[420px] object-contain ${offer.isEntirelyOutOfStock ? "opacity-55" : ""}`}
               loading="lazy"
             />
+            {offer.isEntirelyOutOfStock && <OutOfStockOverlay label="Out of Stock" />}
           </div>
 
           {/* Info */}
@@ -65,7 +70,7 @@ export default function ProductDetail({ product }) {
             </p>
 
             <p className="mt-5 text-3xl font-extrabold text-rose-600">
-              {formatRs(product.price)}
+              {formatRs(offer.price)}
             </p>
 
             {product.description && (
@@ -98,15 +103,17 @@ export default function ProductDetail({ product }) {
               </div>
 
               <button
+                type="button"
                 onClick={handleAddToCart}
-                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-semibold px-6 py-2.5 rounded-lg transition-all flex-1 sm:flex-none"
+                disabled={offer.isEntirelyOutOfStock}
+                className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-semibold px-6 py-2.5 rounded-lg transition-all flex-1 sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-600"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="9" cy="21" r="1" />
                   <circle cx="20" cy="21" r="1" />
                   <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
                 </svg>
-                Add to Cart
+                {offer.isEntirelyOutOfStock ? "Out of Stock" : "Add to Cart"}
               </button>
             </div>
 
@@ -129,7 +136,11 @@ export default function ProductDetail({ product }) {
                 <li className="flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400 shrink-0"><polyline points="20 6 9 17 4 12" /></svg>
                   <span className="text-slate-500">Availability:</span>
-                  <span className="font-medium text-emerald-600">In Stock</span>
+                  {offer.isEntirelyOutOfStock ? (
+                    <span className="font-medium text-rose-600">Out of Stock</span>
+                  ) : (
+                    <span className="font-medium text-emerald-600">In Stock</span>
+                  )}
                 </li>
               </ul>
             </div>

@@ -3,9 +3,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
+  ORDER_STATUS,
   ORDER_STATUS_LABELS,
+  completeOnlineOrderByCustomer,
   getOnlineOrdersByCustomerId,
   getOnlineOrderByOrderIdOrOrderNo,
+  submitOnlineOrderCustomerFeedback,
 } from "@/lib/checkoutApi";
 import { formatRs } from "@/components/shop/shopData";
 
@@ -26,8 +29,9 @@ function getStoredUser() {
 const STATUS_STEPS = [
   { value: 1, label: "Queued" },
   { value: 2, label: "In Progress" },
-  { value: 3, label: "Served" },
-  { value: 4, label: "Completed" },
+  { value: 3, label: "Dispatched" },
+  { value: 4, label: "Delivered" },
+  { value: 5, label: "Completed" },
 ];
 
 function StatusStepper({ currentStatus }) {
@@ -80,7 +84,14 @@ function StatusStepper({ currentStatus }) {
   );
 }
 
-function OrderCard({ order, showDetails = true }) {
+function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated }) {
+  const [marking, setMarking] = useState(false);
+  const [markError, setMarkError] = useState("");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackErr, setFeedbackErr] = useState("");
+
   const status = Number(order.orderStatus ?? order.OrderStatus ?? 1);
   const orderId = order.orderId ?? order.id ?? order.OrderId;
   const orderNo = order.orderNo ?? order.orderNumber ?? order.OrderNo ?? orderId;
@@ -88,6 +99,76 @@ function OrderCard({ order, showDetails = true }) {
   const total = order.netTotal ?? order.NetTotal ?? order.total;
   const customer = order.customer ?? {};
   const items = order.items ?? order.lines ?? order.Lines ?? [];
+
+  const orderCustomerId = Number(order.customerId ?? order.CustomerId);
+  const viewerId =
+    viewer?.customerId != null && viewer.customerId !== ""
+      ? Number(viewer.customerId)
+      : NaN;
+  const viewerEmail = (viewer?.email ?? "").trim();
+  const canMarkComplete =
+    viewer != null &&
+    Number.isFinite(viewerId) &&
+    Number.isFinite(orderCustomerId) &&
+    viewerId === orderCustomerId &&
+    viewerEmail.length > 0 &&
+    status === ORDER_STATUS.Delivered;
+
+  const existingFeedback = String(
+    order.customerFeedback ?? order.CustomerFeedback ?? ""
+  ).trim();
+  const canAddFeedback =
+    viewer != null &&
+    Number.isFinite(viewerId) &&
+    Number.isFinite(orderCustomerId) &&
+    viewerId === orderCustomerId &&
+    viewerEmail.length > 0 &&
+    status === ORDER_STATUS.Completed &&
+    !existingFeedback;
+
+  async function handleMarkComplete() {
+    if (!canMarkComplete || !orderId) return;
+    setMarkError("");
+    setMarking(true);
+    try {
+      await completeOnlineOrderByCustomer({
+        orderId,
+        customerId: viewerId,
+        email: viewerEmail,
+      });
+      onOrderUpdated?.();
+    } catch (e) {
+      setMarkError(e?.message ?? "Something went wrong.");
+    } finally {
+      setMarking(false);
+    }
+  }
+
+  async function handleSubmitFeedback() {
+    if (!orderId || !canAddFeedback) return;
+    const text = feedbackText.trim();
+    if (text.length < 5) {
+      setFeedbackErr("Please write at least a few words (5+ characters).");
+      return;
+    }
+    setFeedbackErr("");
+    setFeedbackBusy(true);
+    try {
+      await submitOnlineOrderCustomerFeedback({
+        orderId,
+        customerId: viewerId,
+        email: viewerEmail,
+        feedback: text,
+      });
+      setFeedbackOpen(false);
+      setFeedbackText("");
+      onOrderUpdated?.();
+    } catch (e) {
+      setFeedbackErr(e?.message ?? "Could not save feedback.");
+    } finally {
+      setFeedbackBusy(false);
+    }
+  }
 
   return (
     <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
@@ -100,13 +181,15 @@ function OrderCard({ order, showDetails = true }) {
         </div>
         <span
           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-            status === 4
+            status === 5
               ? "bg-emerald-100 text-emerald-800"
-              : status === 3
-                ? "bg-blue-100 text-blue-800"
-                : status === 2
-                  ? "bg-amber-100 text-amber-800"
-                  : "bg-slate-100 text-slate-700"
+              : status === 4
+                ? "bg-violet-100 text-violet-800"
+                : status === 3
+                  ? "bg-sky-100 text-sky-800"
+                  : status === 2
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-slate-100 text-slate-700"
           }`}
         >
           {ORDER_STATUS_LABELS[status] ?? "Queued"}
@@ -114,6 +197,89 @@ function OrderCard({ order, showDetails = true }) {
       </div>
 
       <StatusStepper currentStatus={status} />
+
+      {canMarkComplete && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/90 p-4">
+          <p className="text-sm text-slate-700 mb-3">
+            Received your delivery? Confirm here to mark this order as completed. This matches what the store sees in the admin panel.
+          </p>
+          <button
+            type="button"
+            onClick={handleMarkComplete}
+            disabled={marking}
+            className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors disabled:opacity-60"
+          >
+            {marking ? "Saving…" : "Mark order as complete"}
+          </button>
+          {markError ? <p className="mt-2 text-sm text-red-600">{markError}</p> : null}
+        </div>
+      )}
+
+      {status === ORDER_STATUS.Completed && existingFeedback && viewerId === orderCustomerId && Number.isFinite(viewerId) ? (
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50/90 p-4">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Your feedback</p>
+          <p className="text-sm text-slate-800 whitespace-pre-wrap">{existingFeedback}</p>
+        </div>
+      ) : null}
+
+      {canAddFeedback && !feedbackOpen && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => {
+              setFeedbackOpen(true);
+              setFeedbackErr("");
+            }}
+            className="inline-flex items-center justify-center border-2 border-emerald-600 text-emerald-700 hover:bg-emerald-50 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+          >
+            Add feedback
+          </button>
+        </div>
+      )}
+
+      {canAddFeedback && feedbackOpen && (
+        <div className="mt-4 rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
+          <p className="text-sm text-slate-700 mb-2 font-medium">Tell us how we did</p>
+          <textarea
+            value={feedbackText}
+            onChange={(e) => setFeedbackText(e.target.value)}
+            rows={4}
+            maxLength={2000}
+            placeholder="Share your experience with this order…"
+            className="w-full px-3 py-2 text-sm text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-y min-h-[100px]"
+          />
+          <p className="text-xs text-slate-500 mt-1">{feedbackText.length}/2000</p>
+          {feedbackErr ? <p className="mt-2 text-sm text-red-600">{feedbackErr}</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleSubmitFeedback}
+              disabled={feedbackBusy || feedbackText.trim().length < 5}
+              className="inline-flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50"
+            >
+              {feedbackBusy ? "Sending…" : "Submit feedback"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFeedbackOpen(false);
+                setFeedbackText("");
+                setFeedbackErr("");
+              }}
+              disabled={feedbackBusy}
+              className="inline-flex items-center justify-center text-slate-600 text-sm font-medium px-4 py-2"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {status === ORDER_STATUS.Completed && !viewer && (
+        <p className="mt-4 text-sm text-slate-500">
+          Sign in to leave feedback on completed orders.
+        </p>
+      )}
 
       {showDetails && (
         <>
@@ -165,6 +331,7 @@ function OrderCard({ order, showDetails = true }) {
 export default function OrderStatusPage() {
   const [user, setUser] = useState(null);
   const [searchId, setSearchId] = useState("");
+  const [lookupMobile, setLookupMobile] = useState("");
   const [lookupOrder, setLookupOrder] = useState(null);
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState("");
@@ -175,6 +342,15 @@ export default function OrderStatusPage() {
     setUser(getStoredUser());
   }, []);
 
+  /** Pre-fill lookup mobile from account when signed in (user can still edit). */
+  useEffect(() => {
+    const raw = user?.mobileNo;
+    if (raw == null || String(raw).trim() === "") return;
+    const phone = String(raw).replace(/\s/g, "");
+    if (!phone) return;
+    setLookupMobile((prev) => (prev.trim() === "" ? phone : prev));
+  }, [user?.mobileNo]);
+
   useEffect(() => {
     if (!user?.customerId) return;
     setMyOrdersLoading(true);
@@ -184,23 +360,52 @@ export default function OrderStatusPage() {
       .finally(() => setMyOrdersLoading(false));
   }, [user?.customerId]);
 
+  const viewerForCard =
+    user?.customerId != null && user?.email
+      ? { customerId: user.customerId, email: user.email }
+      : null;
+
+  function refreshOrdersAfterCustomerComplete() {
+    const id = searchId.trim();
+    const mobile = lookupMobile.trim();
+    if (id && mobile) {
+      getOnlineOrderByOrderIdOrOrderNo(id, mobile)
+        .then((o) => {
+          if (o) setLookupOrder(o);
+        })
+        .catch(() => {});
+    }
+    if (user?.customerId) {
+      getOnlineOrdersByCustomerId(user.customerId)
+        .then((list) => setMyOrders(Array.isArray(list) ? list : []))
+        .catch(() => {});
+    }
+  }
+
   function handleLookup(e) {
     e.preventDefault();
     const id = searchId.trim();
+    const mobile = lookupMobile.trim();
     if (!id) {
       setLookupError("Please enter an order ID or order number.");
+      return;
+    }
+    if (!mobile) {
+      setLookupError("Mobile number is required.");
       return;
     }
     setLookupError("");
     setLookupOrder(null);
     setLookupLoading(true);
 
-    getOnlineOrderByOrderIdOrOrderNo(id)
+    getOnlineOrderByOrderIdOrOrderNo(id, mobile)
       .then((order) => {
         if (order) setLookupOrder(order);
         else setLookupError("Order not found. Check the order number or try again.");
       })
-      .catch(() => setLookupError("Could not load order. Try again or check the order number."))
+      .catch((err) => {
+        setLookupError(err?.message ?? "Could not load order. Try again.");
+      })
       .finally(() => setLookupLoading(false));
   }
 
@@ -217,24 +422,51 @@ export default function OrderStatusPage() {
           Order Status
         </h1>
         <p className="text-slate-600 text-sm mb-8">
-          Track your order by entering your Order ID or order number below. If you're signed in, you can also see your recent orders.
+          Track your order with your order number and the mobile number you used at checkout. If you&apos;re signed in,
+          you can also see your recent orders below.
         </p>
 
-        {/* Lookup by Order ID */}
+        {/* Lookup by Order ID + mobile */}
         <div className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 mb-8">
           <h2 className="text-lg font-bold text-slate-900 mb-3">Look up order</h2>
-          <form onSubmit={handleLookup} className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-              placeholder="Enter Order ID"
-              className="flex-1 min-w-0 px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
-            />
+          <form onSubmit={handleLookup} className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div className="min-w-0">
+                <label htmlFor="order-lookup-id" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Order ID or order number
+                </label>
+                <input
+                  id="order-lookup-id"
+                  type="text"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  placeholder="Enter Order ID"
+                  autoComplete="off"
+                  className="w-full px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+              <div className="min-w-0">
+                <label htmlFor="order-lookup-mobile" className="block text-xs font-semibold text-slate-600 mb-1.5">
+                  Mobile number <span className="text-red-600" aria-hidden="true">*</span>
+                </label>
+                <input
+                  id="order-lookup-mobile"
+                  type="tel"
+                  inputMode="tel"
+                  value={lookupMobile}
+                  onChange={(e) => setLookupMobile(e.target.value)}
+                  placeholder="Enter mobile number used at checkout"
+                  autoComplete="tel"
+                  required
+                  aria-required="true"
+                  className="w-full px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+            </div>
             <button
               type="submit"
               disabled={lookupLoading}
-              className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm"
+              className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-5 py-2.5 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-sm w-full sm:w-auto sm:self-start"
             >
               {lookupLoading ? (
                 <>
@@ -258,7 +490,12 @@ export default function OrderStatusPage() {
         {lookupOrder && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-900 mb-3">Order details</h2>
-            <OrderCard order={lookupOrder} showDetails={true} />
+            <OrderCard
+              order={lookupOrder}
+              showDetails={true}
+              viewer={viewerForCard}
+              onOrderUpdated={refreshOrdersAfterCustomerComplete}
+            />
           </div>
         )}
 
@@ -278,7 +515,12 @@ export default function OrderStatusPage() {
               <ul className="space-y-4">
                 {myOrders.map((order, idx) => (
                   <li key={order.id ?? order.orderId ?? order.OrderId ?? idx}>
-                    <OrderCard order={order} showDetails={true} />
+                    <OrderCard
+                      order={order}
+                      showDetails={true}
+                      viewer={viewerForCard}
+                      onOrderUpdated={refreshOrdersAfterCustomerComplete}
+                    />
                   </li>
                 ))}
               </ul>

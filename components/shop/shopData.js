@@ -272,6 +272,7 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
           url: s.imgUrl ?? s.imageUrl ?? "",
           description: s.description ?? "",
           price: s.price,
+          isOutOfStock: !!(s.isOutOfStock ?? s.IsOutOfStock),
         }))
     : [];
   return {
@@ -281,10 +282,97 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     productCode: item.code ?? "",
     price: Number.isFinite(price) ? price : 0,
     image: item.productImage ?? "",
+    /** Main / primary image out of stock (Items.IsOutOfStock from API). */
+    isOutOfStock: !!(item.isOutOfStock ?? item.IsOutOfStock),
     itemSubImages: subImages,
     category: categoryName,
     subcategory: subCategoryName,
     description: item.description ?? "",
     badge: subCategoryName || null,
+  };
+}
+
+/**
+ * Pick the first purchasable image/price: main image if in stock, otherwise first in-stock sub-image.
+ * Used for shop grid and quick-add so a main-only OOS flag does not block subs that are available.
+ *
+ * @returns {{ image: string, price: number, itemSubImageId: number|null, isEntirelyOutOfStock: boolean, subDescription: string }}
+ */
+export function getPreferredInStockOffer(product) {
+  if (!product) {
+    return {
+      image: "",
+      price: 0,
+      itemSubImageId: null,
+      isEntirelyOutOfStock: true,
+      subDescription: "",
+    };
+  }
+  const priceBase =
+    typeof product.price === "number" && Number.isFinite(product.price)
+      ? product.price
+      : parseFloat(product.price) || 0;
+  const hasMainImg = !!(product.image && String(product.image).trim());
+  if (hasMainImg && !product.isOutOfStock) {
+    return {
+      image: product.image,
+      price: priceBase,
+      itemSubImageId: null,
+      isEntirelyOutOfStock: false,
+      subDescription: "",
+    };
+  }
+  const subs = Array.isArray(product.itemSubImages) ? product.itemSubImages : [];
+  const sub = subs.find((s) => s?.url && String(s.url).trim() && !s.isOutOfStock);
+  if (sub) {
+    const sp =
+      sub.price != null && Number.isFinite(Number(sub.price)) ? Number(sub.price) : priceBase;
+    return {
+      image: sub.url,
+      price: sp,
+      itemSubImageId: typeof sub.id === "number" ? sub.id : null,
+      isEntirelyOutOfStock: false,
+      subDescription: sub.description ?? "",
+    };
+  }
+  const fallbackUrl = product.image || subs.find((s) => s?.url)?.url || "";
+  return {
+    image: fallbackUrl,
+    price: priceBase,
+    itemSubImageId: null,
+    isEntirelyOutOfStock: true,
+    subDescription: "",
+  };
+}
+
+export function isProductEntirelyOutOfStock(product) {
+  return getPreferredInStockOffer(product).isEntirelyOutOfStock;
+}
+
+/**
+ * Cart line for the preferred in-stock option (main or first available sub). Null if nothing is available.
+ */
+export function productToCartLine(product) {
+  const offer = getPreferredInStockOffer(product);
+  if (offer.isEntirelyOutOfStock) return null;
+  if (offer.itemSubImageId != null) {
+    const desc = (offer.subDescription || "").trim();
+    return {
+      ...product,
+      image: offer.image,
+      price: offer.price,
+      slug: `${product.slug}-variant-${offer.itemSubImageId}`,
+      baseSlug: product.slug,
+      variantDescription: offer.subDescription ?? "",
+      itemSubImageId: offer.itemSubImageId,
+      name: desc ? `${product.name} — ${desc}` : product.name,
+      isOutOfStock: false,
+    };
+  }
+  return {
+    ...product,
+    image: offer.image,
+    price: offer.price,
+    isOutOfStock: false,
   };
 }
