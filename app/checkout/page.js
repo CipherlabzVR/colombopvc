@@ -17,6 +17,11 @@ import {
 import { createGuestCustomerForCheckout } from "@/lib/customerApi";
 import CheckoutAuthModal from "@/components/CheckoutAuthModal";
 import AddDeliveryAddressModal from "@/components/AddDeliveryAddressModal";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
+import {
+  computeBestCategoryLinePromotion,
+  summarizeCartPromotions,
+} from "@/lib/categoryPromotionPricing";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -44,6 +49,7 @@ function generateOrderId() {
 export default function CheckoutPage() {
   const router = useRouter();
   const { itemsForCheckout, removeFromCart, setCheckoutSelection } = useCart();
+  const { rules } = useCategoryPromotions();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
@@ -141,9 +147,13 @@ export default function CheckoutPage() {
   }, [selectedAddressId, savedAddresses]);
 
   const totalItems = itemsForCheckout.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = itemsForCheckout.reduce((s, i) => s + i.price * i.qty, 0);
-  const deliveryFee = totalPrice >= FREE_DELIVERY_MIN ? 0 : DELIVERY_FEE;
-  const grandTotal = totalPrice + deliveryFee;
+  const grossMerchandise = itemsForCheckout.reduce((s, i) => s + i.price * i.qty, 0);
+  const { discount: promotionDiscount, net: merchandiseNet } = summarizeCartPromotions(
+    itemsForCheckout,
+    rules,
+  );
+  const deliveryFee = grossMerchandise >= FREE_DELIVERY_MIN ? 0 : DELIVERY_FEE;
+  const grandTotal = merchandiseNet + deliveryFee;
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -169,13 +179,27 @@ export default function CheckoutPage() {
     return errs;
   }
 
-  const lines = itemsForCheckout.map((i) => ({
-    ProductId: i.id ?? 0,
-    ProductName: i.name ?? "",
-    Price: Number(i.price),
-    Quantity: Number(i.qty),
-    LineTotal: Number(i.price) * Number(i.qty),
-  }));
+  const lines = itemsForCheckout.map((i) => {
+    const lineGross = Number(i.price) * Number(i.qty);
+    const promo = computeBestCategoryLinePromotion(lineGross, i.qty, i.categoryId, rules);
+    const base = {
+      ProductId: i.id ?? 0,
+      ProductName: i.name ?? "",
+      Price: Number(i.price),
+      Quantity: Number(i.qty),
+      LineTotal: lineGross,
+    };
+    if (promo.promotionId != null && promo.totalDiscount > 0) {
+      return {
+        ...base,
+        PromotionId: promo.promotionId,
+        DiscountAmount: promo.discountAmountPerUnit,
+        TotalDiscount: promo.totalDiscount,
+        SubTotal: promo.subTotal,
+      };
+    }
+    return base;
+  });
 
   const paymentOption = Number(form.paymentMethod) || PAYMENT_OPTIONS.CashOnDelivery;
 
@@ -195,11 +219,11 @@ export default function CheckoutPage() {
     setErrors({});
 
     const orderPayload = {
-      SubTotal: totalPrice,
+      SubTotal: merchandiseNet,
       DeliveryCharge: deliveryFee,
       NetTotal: grandTotal,
       DiscountRate: null,
-      DiscountAmount: null,
+      DiscountAmount: promotionDiscount > 0 ? promotionDiscount : null,
       OrderStatus: 1,
       PaymentOption: paymentOption,
       Lines: lines,
@@ -639,15 +663,43 @@ export default function CheckoutPage() {
                         <p className="text-sm font-medium text-slate-800 line-clamp-1">{item.name}</p>
                         <p className="text-xs text-slate-500">Qty: {item.qty}</p>
                       </div>
-                      <span className="text-sm font-semibold text-slate-800 shrink-0">{formatRs(item.price * item.qty)}</span>
+                      <span className="text-sm font-semibold text-slate-800 shrink-0 text-right">
+                        {(() => {
+                          const lg = item.price * item.qty;
+                          const p = computeBestCategoryLinePromotion(lg, item.qty, item.categoryId, rules);
+                          if (p.totalDiscount > 0) {
+                            return (
+                              <span className="inline-flex flex-col items-end">
+                                <span className="text-xs font-medium text-slate-400 line-through">
+                                  {formatRs(lg)}
+                                </span>
+                                <span>{formatRs(p.subTotal)}</span>
+                              </span>
+                            );
+                          }
+                          return formatRs(lg);
+                        })()}
+                      </span>
                     </li>
                   ))}
                 </ul>
 
                 <div className="border-t border-slate-200 pt-4 space-y-2 text-sm">
+                  {promotionDiscount > 0 && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Merchandise</span>
+                      <span className="font-medium text-slate-800">{formatRs(grossMerchandise)}</span>
+                    </div>
+                  )}
+                  {promotionDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Promotion savings</span>
+                      <span className="font-semibold">−{formatRs(promotionDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal ({totalItems} items)</span>
-                    <span className="font-medium text-slate-800">{formatRs(totalPrice)}</span>
+                    <span className="font-medium text-slate-800">{formatRs(merchandiseNet)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Delivery</span>

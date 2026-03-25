@@ -56,7 +56,7 @@ export default function Footer() {
               <ul className="space-y-3 font-poppins">
                 <li><Link href="/" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">Home</Link></li>
                 <li><Link href="/shop" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">Shop</Link></li>
-                <li><Link href="/promotion" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">Promotion</Link></li>
+                <li><Link href="/ecom/promotions" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">Promotion</Link></li>
                 <li><Link href="/about" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">About Us</Link></li>
                 <li><Link href="/contact" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">Contact Us</Link></li>
                 <li><Link href="/faqs" className="text-sm text-slate-400 hover:text-[#FACC15] transition-colors">FAQs</Link></li>

@@ -1,0 +1,170 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import {
+  getPublicPromotionById,
+  getPromotionCategoryLabel,
+  formatPromotionDate,
+  formatDiscountLine,
+  normalizePromotionCategoryKey,
+} from "@/lib/promotionsApi";
+
+function prettyJson(maybeJson) {
+  if (!maybeJson) return null;
+  try {
+    const obj = typeof maybeJson === "string" ? JSON.parse(maybeJson) : maybeJson;
+    return JSON.stringify(obj, null, 2);
+  } catch {
+    return String(maybeJson);
+  }
+}
+
+export default function EcomPromotionDetailPage() {
+  const params = useParams();
+  const id = params?.id;
+  const [promo, setPromo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!id) return undefined;
+    setLoading(true);
+    setError(null);
+    getPublicPromotionById(id)
+      .then((p) => {
+        if (!p) setError("notfound");
+        else setPromo(p);
+      })
+      .catch((e) => setError(e.message || "failed"))
+      .finally(() => setLoading(false));
+    return undefined;
+  }, [id]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-[#B45309]" />
+      </main>
+    );
+  }
+
+  if (error === "notfound" || !promo) {
+    return (
+      <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 px-4 font-poppins">
+        <p className="text-slate-600 text-center">
+          {error && error !== "notfound" ? error : "This promotion is not available or has ended."}
+        </p>
+        <Link href="/ecom/promotions" className="text-sm font-medium text-[#B45309] hover:text-[#923a07]">
+          ← All promotions
+        </Link>
+      </main>
+    );
+  }
+
+  const catKey = normalizePromotionCategoryKey(promo.promotionCategory);
+  const lines = Array.isArray(promo.promotionCategoryLines) ? promo.promotionCategoryLines : [];
+  const settingsPretty = prettyJson(promo.promotionTypeSettingsJson);
+
+  return (
+    <main className="min-h-screen bg-slate-50">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+        .font-poppins { font-family: 'Poppins', sans-serif; }
+      `}</style>
+
+      <article className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 font-poppins">
+        <nav className="text-sm text-slate-500 mb-6">
+          <Link href="/" className="hover:text-[#B45309]">
+            Home
+          </Link>
+          <span className="mx-2">/</span>
+          <Link href="/ecom/promotions" className="hover:text-[#B45309]">
+            Promotions
+          </Link>
+          <span className="mx-2">/</span>
+          <span className="text-slate-800 line-clamp-1">{promo.name}</span>
+        </nav>
+
+        <div className="h-1.5 rounded-full bg-linear-to-r from-[#0D1B3E] to-[#FFB000] mb-6" />
+
+        <p className="text-sm font-medium text-[#B45309] uppercase tracking-wide mb-2">
+          {getPromotionCategoryLabel(promo.promotionCategory)}
+        </p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">{promo.name}</h1>
+
+        {promo.description && <p className="text-slate-600 leading-relaxed mb-6">{promo.description}</p>}
+
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-8">
+          <div className="bg-white rounded-lg border border-slate-100 p-4">
+            <dt className="text-slate-500 mb-1">Valid from</dt>
+            <dd className="font-medium text-slate-900">{formatPromotionDate(promo.startDate)}</dd>
+          </div>
+          <div className="bg-white rounded-lg border border-slate-100 p-4">
+            <dt className="text-slate-500 mb-1">Valid until</dt>
+            <dd className="font-medium text-slate-900">{formatPromotionDate(promo.endDate)}</dd>
+          </div>
+          {promo.couponCode ? (
+            <div className="bg-amber-50 rounded-lg border border-amber-100 p-4 sm:col-span-2">
+              <dt className="text-amber-900/80 mb-1">Coupon code</dt>
+              <dd className="font-mono text-lg font-semibold text-slate-900">{promo.couponCode}</dd>
+            </div>
+          ) : null}
+          {catKey !== "CategoryBased" && promo.promotionType ? (
+            <div className="bg-white rounded-lg border border-slate-100 p-4 sm:col-span-2">
+              <dt className="text-slate-500 mb-1">Offer type</dt>
+              <dd className="font-medium text-slate-900">
+                {String(promo.promotionType).replace(/([A-Z])/g, " $1").trim()}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+
+        {lines.length > 0 && (
+          <section className="mb-8" aria-labelledby="category-offers-heading">
+            <h2 id="category-offers-heading" className="text-lg font-semibold text-slate-900 mb-3">
+              Category offers
+            </h2>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                    <th className="px-4 py-3 font-semibold text-slate-700">Category</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Discount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lines.map((line) => (
+                    <tr key={line.id ?? `${line.categoryId}-${line.value}`} className="border-b border-slate-100 last:border-0">
+                      <td className="px-4 py-3 text-slate-800">{line.categoryName || `Category #${line.categoryId}`}</td>
+                      <td className="px-4 py-3 text-slate-800">{formatDiscountLine(line)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {settingsPretty && (
+          <section className="mb-8" aria-labelledby="offer-details-heading">
+            <h2 id="offer-details-heading" className="text-lg font-semibold text-slate-900 mb-3">
+              Offer details
+            </h2>
+            <pre className="text-xs sm:text-sm bg-slate-900 text-slate-100 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
+              {settingsPretty}
+            </pre>
+          </section>
+        )}
+
+        <Link
+          href="/ecom/promotions"
+          className="inline-flex items-center gap-2 text-sm font-medium text-[#B45309] hover:text-[#923a07]"
+        >
+          ← Back to all promotions
+        </Link>
+      </article>
+    </main>
+  );
+}

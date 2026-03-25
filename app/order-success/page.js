@@ -12,6 +12,11 @@ import {
   getAllCheckoutAddressByCustomerId,
 } from "@/lib/checkoutApi";
 import { getAllECommerceCustomers } from "@/lib/customerApi";
+import {
+  mapApiLineToReceiptItem,
+  getOrderDiscountAmount,
+  sumOrderLinesGross,
+} from "@/lib/orderPromotionDisplay";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -108,14 +113,13 @@ function normalizeOrderFromApi(apiOrder, orderIdForFallback) {
       paymentMethod: apiOrder.paymentOption ?? apiOrder.PaymentOption,
       notes,
     },
-    items: lines.map((line) => ({
-      name: line.productName ?? line.ProductName ?? "Item",
-      qty: line.quantity ?? line.Quantity ?? 1,
-      price: line.price ?? line.Price ?? 0,
-    })),
+    items: lines.map((line) => mapApiLineToReceiptItem(line)),
     subtotal: apiOrder.subTotal ?? apiOrder.SubTotal ?? 0,
     deliveryFee: apiOrder.deliveryCharge ?? apiOrder.DeliveryCharge ?? 0,
     total: apiOrder.netTotal ?? apiOrder.NetTotal ?? 0,
+    discountAmount: getOrderDiscountAmount(apiOrder),
+    merchandiseGross:
+      getOrderDiscountAmount(apiOrder) > 0 ? sumOrderLinesGross(lines) : null,
   };
 }
 
@@ -336,10 +340,12 @@ function OrderSuccessContent() {
       doc.setFontSize(9);
       const nameLine = `${idx + 1}. ${item.name}`;
       const nameLines = doc.splitTextToSize(nameLine, 120);
-      const priceText = `x${item.qty} ${formatRs(item.price * item.qty)}`;
+      const priceText = item.hasPromo
+        ? `x${item.qty} ${formatRs(item.lineNet)} (was ${formatRs(item.lineGross)})`
+        : `x${item.qty} ${formatRs(item.lineNet)}`;
       nameLines.forEach((line, i) => {
         doc.text(line, margin, y);
-        if (i === 0) doc.text(priceText, margin + 140, y);
+        if (i === 0) doc.text(priceText, margin + 120, y);
         y += lineH;
       });
     });
@@ -349,6 +355,16 @@ function OrderSuccessContent() {
     doc.line(margin, y, 210 - margin, y);
     y += lineH;
 
+    if (order.discountAmount > 0 && order.merchandiseGross != null) {
+      doc.text("Merchandise (before promo)", margin, y);
+      doc.text(formatRs(order.merchandiseGross), margin + 140, y);
+      y += lineH;
+      doc.setTextColor(5, 150, 105);
+      doc.text("Promotion savings", margin, y);
+      doc.text(`-${formatRs(order.discountAmount)}`, margin + 140, y);
+      doc.setTextColor(0, 0, 0);
+      y += lineH;
+    }
     doc.text("Subtotal", margin, y);
     doc.text(formatRs(order.subtotal), margin + 140, y);
     y += lineH;
@@ -374,8 +390,19 @@ function OrderSuccessContent() {
       `*Address:* ${order.customer.address}, ${order.customer.city}, ${order.customer.district}${order.customer.postalCode ? " " + order.customer.postalCode : ""}`,
       "",
       "*Items:*",
-      ...order.items.map((i, idx) => `${idx + 1}. ${i.name} x${i.qty} - ${formatRs(i.price * i.qty)}`),
+      ...order.items.map((i, idx) => {
+        const amt = i.hasPromo
+          ? `${formatRs(i.lineNet)} (promo, list ${formatRs(i.lineGross)})`
+          : formatRs(i.lineNet);
+        return `${idx + 1}. ${i.name} x${i.qty} - ${amt}`;
+      }),
       "",
+      ...(order.discountAmount > 0 && order.merchandiseGross != null
+        ? [
+            `*Merchandise:* ${formatRs(order.merchandiseGross)}`,
+            `*Promotion savings:* -${formatRs(order.discountAmount)}`,
+          ]
+        : []),
       `*Subtotal:* ${formatRs(order.subtotal)}`,
       `*Delivery:* ${order.deliveryFee === 0 ? "FREE" : formatRs(order.deliveryFee)}`,
       `*Total:* ${formatRs(order.total)}`,
@@ -515,7 +542,16 @@ function OrderSuccessContent() {
                   <span className="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0">{idx + 1}</span>
                   <span className="flex-1 min-w-0 text-slate-800 truncate">{item.name}</span>
                   <span className="text-slate-500 shrink-0">x{item.qty}</span>
-                  <span className="font-semibold text-slate-800 shrink-0">{formatRs(item.price * item.qty)}</span>
+                  <span className="font-semibold text-slate-800 shrink-0 text-right">
+                    {item.hasPromo ? (
+                      <span className="inline-flex flex-col items-end">
+                        <span className="text-xs font-medium text-slate-400 line-through">{formatRs(item.lineGross)}</span>
+                        <span>{formatRs(item.lineNet)}</span>
+                      </span>
+                    ) : (
+                      formatRs(item.lineNet)
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -523,6 +559,18 @@ function OrderSuccessContent() {
 
           {/* Totals */}
           <div className="border-t border-slate-200 mt-4 pt-4 space-y-2 text-sm">
+            {order.discountAmount > 0 && order.merchandiseGross != null && (
+              <>
+                <div className="flex justify-between text-slate-600">
+                  <span>Merchandise</span>
+                  <span className="font-medium text-slate-800">{formatRs(order.merchandiseGross)}</span>
+                </div>
+                <div className="flex justify-between text-emerald-700">
+                  <span>Promotion savings</span>
+                  <span className="font-semibold">−{formatRs(order.discountAmount)}</span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between text-slate-600">
               <span>Subtotal</span>
               <span className="font-medium text-slate-800">{formatRs(order.subtotal)}</span>

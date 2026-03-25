@@ -5,6 +5,7 @@ import TopBar from "@/components/TopBar";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { CartProvider } from "@/context/CartContext";
+import { CategoryPromotionProvider } from "@/context/CategoryPromotionContext";
 import CartDrawer from "@/components/cart/CartDrawer";
 import CartToast from "@/components/cart/CartToast";
 import MobileNav from "@/components/MobileNav";
@@ -104,6 +105,7 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
         />
         <CartProvider>
+          <CategoryPromotionProvider>
           <TopBar />
           <Suspense fallback={<div className="bg-[#0D1B3E] min-h-[72px] md:min-h-[88px]" />}>
             <Navbar />
@@ -116,6 +118,7 @@ export default function RootLayout({ children }) {
           <CartToast />
           <MobileNav />
           <WhatsAppFloat />
+          </CategoryPromotionProvider>
         </CartProvider>
       </body>
     </html>

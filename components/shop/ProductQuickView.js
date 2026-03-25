@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { formatRs } from "@/components/shop/shopData";
 import { useCart } from "@/context/CartContext";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
+import { effectiveUnitPriceAfterPromotion } from "@/lib/categoryPromotionPricing";
 import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 /**
@@ -43,6 +45,7 @@ export default function ProductQuickView({ product, onClose }) {
   const [qty, setQty] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addToCart } = useCart();
+  const { rules } = useCategoryPromotions();
 
   const allImages = useMemo(() => getAllImages(product), [product]);
 
@@ -77,6 +80,14 @@ export default function ProductQuickView({ product, onClose }) {
 
   /** Effective price: sub-image price when selected and available, else product price */
   const effectivePrice = currentImage?.price != null ? currentImage.price : product.price;
+  const promoUnit = effectiveUnitPriceAfterPromotion(
+    effectivePrice,
+    1,
+    product.categoryId,
+    rules,
+  );
+  const showPromoPrice =
+    product.categoryId != null && promoUnit < effectivePrice - 0.001;
   /** Effective description: sub-image description when selected (not main slot), else product description */
   const effectiveDescription =
     currentImage?.id !== "main" && currentImage?.description
@@ -209,9 +220,20 @@ export default function ProductQuickView({ product, onClose }) {
               </p>
 
               <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
-                  {formatRs(effectivePrice)}
-                </p>
+                {showPromoPrice ? (
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <p className="text-lg font-semibold text-slate-400 line-through">
+                      {formatRs(effectivePrice)}
+                    </p>
+                    <p className="text-2xl sm:text-3xl font-extrabold text-emerald-700">
+                      {formatRs(promoUnit)}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-2xl sm:text-3xl font-extrabold text-slate-800">
+                    {formatRs(effectivePrice)}
+                  </p>
+                )}
                 {currentImage?.isOutOfStock && (
                   <p className="text-sm font-semibold text-rose-600 mt-2">
                     {allGalleryOptionsOutOfStock

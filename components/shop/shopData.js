@@ -281,6 +281,7 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     name: item.name ?? "",
     productCode: item.code ?? "",
     price: Number.isFinite(price) ? price : 0,
+    categoryId: item.categoryId != null ? Number(item.categoryId) : undefined,
     image: item.productImage ?? "",
     /** Main / primary image out of stock (Items.IsOutOfStock from API). */
     isOutOfStock: !!(item.isOutOfStock ?? item.IsOutOfStock),

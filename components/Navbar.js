@@ -190,9 +190,9 @@ export default function Navbar() {
         <Link href="/shop" className={navLinkClass(pathname, "/shop")}>
           Shop
         </Link>
-        {/* <Link href="/promotion" className={navLinkClass(pathname, "/promotion")}>
+        <Link href="/ecom/promotions" className={navLinkClass(pathname, "/ecom/promotions")}>
           Promotion
-        </Link> */}
+        </Link>
         <Link href="/order-status" className={navLinkClass(pathname, "/order-status")}>
           Order Status
         </Link>
@@ -522,13 +522,13 @@ export default function Navbar() {
               >
                 Shop
               </Link>
-              {/* <Link
-                href="/promotion"
-                className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/promotion") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}
+              <Link
+                href="/ecom/promotions"
+                className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/ecom/promotions") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Promotion
-              </Link> */}
+              </Link>
               <Link
                 href="/order-status"
                 className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/order-status") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}

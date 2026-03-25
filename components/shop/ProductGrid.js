@@ -2,15 +2,28 @@
 
 import { formatRs, getPreferredInStockOffer, productToCartLine } from "@/components/shop/shopData";
 import { useCart } from "@/context/CartContext";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
+import { effectiveUnitPriceAfterPromotion } from "@/lib/categoryPromotionPricing";
 import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 export default function ProductGrid({ products, onProductClick }) {
   const { addToCart } = useCart();
+  const { rules } = useCategoryPromotions();
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
       {products.map((product) => {
         const offer = getPreferredInStockOffer(product);
+        const saleUnit = effectiveUnitPriceAfterPromotion(
+          offer.price,
+          1,
+          product.categoryId,
+          rules,
+        );
+        const showPromo =
+          !offer.isEntirelyOutOfStock &&
+          product.categoryId != null &&
+          saleUnit < offer.price - 0.001;
         return (
         <div
           key={product.slug}
@@ -47,8 +60,17 @@ export default function ProductGrid({ products, onProductClick }) {
           </div>
 
           <div className="px-3 sm:px-4 pb-4 mt-auto flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-rose-600">
-              {formatRs(offer.price)}
+            <span className="text-sm font-semibold text-rose-600 flex flex-col items-start gap-0.5">
+              {showPromo ? (
+                <>
+                  <span className="text-xs font-medium text-slate-400 line-through decoration-slate-400">
+                    {formatRs(offer.price)}
+                  </span>
+                  <span className="text-rose-600">{formatRs(saleUnit)}</span>
+                </>
+              ) : (
+                formatRs(offer.price)
+              )}
             </span>
             <button
               onClick={(e) => {

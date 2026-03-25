@@ -8,9 +8,15 @@ import {
   completeOnlineOrderByCustomer,
   getOnlineOrdersByCustomerId,
   getOnlineOrderByOrderIdOrOrderNo,
+  parseOrderStatus,
   submitOnlineOrderCustomerFeedback,
 } from "@/lib/checkoutApi";
 import { formatRs } from "@/components/shop/shopData";
+import {
+  mapApiLineToReceiptItem,
+  getOrderDiscountAmount,
+  sumOrderLinesGross,
+} from "@/lib/orderPromotionDisplay";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -35,7 +41,8 @@ const STATUS_STEPS = [
 ];
 
 function StatusStepper({ currentStatus }) {
-  const status = Number(currentStatus) || 1;
+  const parsed = parseOrderStatus(currentStatus);
+  const status = Number.isFinite(parsed) ? parsed : 1;
   return (
     <div className="flex items-center justify-between gap-1">
       {STATUS_STEPS.map((step, idx) => {
@@ -92,13 +99,18 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
   const [feedbackBusy, setFeedbackBusy] = useState(false);
   const [feedbackErr, setFeedbackErr] = useState("");
 
-  const status = Number(order.orderStatus ?? order.OrderStatus ?? 1);
+  const statusRaw = order.orderStatus ?? order.OrderStatus;
+  const parsedStatus = parseOrderStatus(statusRaw);
+  const status = Number.isFinite(parsedStatus) ? parsedStatus : 1;
   const orderId = order.orderId ?? order.id ?? order.OrderId;
   const orderNo = order.orderNo ?? order.orderNumber ?? order.OrderNo ?? orderId;
   const date = order.orderDate ?? order.date ?? order.CreatedOn ?? order.createdOn;
   const total = order.netTotal ?? order.NetTotal ?? order.total;
   const customer = order.customer ?? {};
-  const items = order.items ?? order.lines ?? order.Lines ?? [];
+  const rawLines = order.items ?? order.lines ?? order.Lines ?? [];
+  const items = Array.isArray(rawLines) ? rawLines.map((row) => mapApiLineToReceiptItem(row)) : [];
+  const orderDiscount = getOrderDiscountAmount(order);
+  const merchandiseGross = orderDiscount > 0 ? sumOrderLinesGross(rawLines) : null;
 
   const orderCustomerId = Number(order.customerId ?? order.CustomerId);
   const viewerId =
@@ -293,6 +305,18 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
               })}
             </p>
           )}
+          {merchandiseGross != null && orderDiscount > 0 && (
+            <div className="mt-1 space-y-0.5 text-xs text-slate-600">
+              <p className="flex justify-between gap-2">
+                <span>Merchandise</span>
+                <span>{formatRs(merchandiseGross)}</span>
+              </p>
+              <p className="flex justify-between gap-2 text-emerald-700 font-medium">
+                <span>Promotion savings</span>
+                <span>−{formatRs(orderDiscount)}</span>
+              </p>
+            </div>
+          )}
           {total != null && (
             <p className="mt-1 text-sm font-semibold text-slate-800">
               Total: {formatRs(total)}
@@ -308,12 +332,19 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
               {Array.isArray(items) && items.length > 0 && (
             <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm text-slate-600">
               {items.slice(0, 3).map((item, idx) => (
-                <li key={item.LineId ?? item.lineId ?? idx} className="flex justify-between gap-2">
+                <li key={item.lineId ?? `${item.name}-${idx}`} className="flex justify-between gap-2">
                   <span className="truncate">
-                    {item.name ?? item.ProductName ?? "Item"} x{item.qty ?? item.Quantity ?? 1}
+                    {item.name} x{item.qty}
                   </span>
-                  <span className="shrink-0">
-                    {formatRs(item.LineTotal ?? item.lineTotal ?? (item.price ?? item.Price ?? 0) * (item.qty ?? item.Quantity ?? 1))}
+                  <span className="shrink-0 text-right">
+                    {item.hasPromo ? (
+                      <span className="inline-flex flex-col items-end">
+                        <span className="text-[10px] text-slate-400 line-through">{formatRs(item.lineGross)}</span>
+                        <span>{formatRs(item.lineNet)}</span>
+                      </span>
+                    ) : (
+                      formatRs(item.lineNet)
+                    )}
                   </span>
                 </li>
               ))}
