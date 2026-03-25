@@ -45,7 +45,7 @@ export default function ProductQuickView({ product, onClose }) {
   const [qty, setQty] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const { addToCart } = useCart();
-  const { rules } = useCategoryPromotions();
+  const { rules, productRules } = useCategoryPromotions();
 
   const allImages = useMemo(() => getAllImages(product), [product]);
 
@@ -85,9 +85,10 @@ export default function ProductQuickView({ product, onClose }) {
     1,
     product.categoryId,
     rules,
+    product.id,
+    productRules,
   );
-  const showPromoPrice =
-    product.categoryId != null && promoUnit < effectivePrice - 0.001;
+  const showPromoPrice = promoUnit < effectivePrice - 0.001;
   /** Effective description: sub-image description when selected (not main slot), else product description */
   const effectiveDescription =
     currentImage?.id !== "main" && currentImage?.description

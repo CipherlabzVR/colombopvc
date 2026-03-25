@@ -19,7 +19,7 @@ import CheckoutAuthModal from "@/components/CheckoutAuthModal";
 import AddDeliveryAddressModal from "@/components/AddDeliveryAddressModal";
 import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
 import {
-  computeBestCategoryLinePromotion,
+  computeBestCombinedLinePromotion,
   summarizeCartPromotions,
 } from "@/lib/categoryPromotionPricing";
 
@@ -151,6 +151,7 @@ export default function CheckoutPage() {
   const { discount: promotionDiscount, net: merchandiseNet } = summarizeCartPromotions(
     itemsForCheckout,
     rules,
+    productRules,
   );
   const deliveryFee = grossMerchandise >= FREE_DELIVERY_MIN ? 0 : DELIVERY_FEE;
   const grandTotal = merchandiseNet + deliveryFee;
@@ -666,7 +667,14 @@ export default function CheckoutPage() {
                       <span className="text-sm font-semibold text-slate-800 shrink-0 text-right">
                         {(() => {
                           const lg = item.price * item.qty;
-                          const p = computeBestCategoryLinePromotion(lg, item.qty, item.categoryId, rules);
+                          const p = computeBestCombinedLinePromotion(
+                            lg,
+                            item.qty,
+                            item.categoryId,
+                            item.id,
+                            rules,
+                            productRules,
+                          );
                           if (p.totalDiscount > 0) {
                             return (
                               <span className="inline-flex flex-col items-end">

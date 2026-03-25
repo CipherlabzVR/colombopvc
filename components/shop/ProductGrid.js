@@ -8,7 +8,7 @@ import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 export default function ProductGrid({ products, onProductClick }) {
   const { addToCart } = useCart();
-  const { rules } = useCategoryPromotions();
+  const { rules, productRules } = useCategoryPromotions();
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -19,11 +19,11 @@ export default function ProductGrid({ products, onProductClick }) {
           1,
           product.categoryId,
           rules,
+          product.id,
+          productRules,
         );
         const showPromo =
-          !offer.isEntirelyOutOfStock &&
-          product.categoryId != null &&
-          saleUnit < offer.price - 0.001;
+          !offer.isEntirelyOutOfStock && saleUnit < offer.price - 0.001;
         return (
         <div
           key={product.slug}

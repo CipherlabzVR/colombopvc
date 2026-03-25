@@ -11,10 +11,11 @@ import {
 
 export default function CartPage() {
   const { items, totalItems, setQty, removeFromCart, clearCart } = useCart();
-  const { rules } = useCategoryPromotions();
+  const { rules, productRules } = useCategoryPromotions();
   const { gross: cartGross, discount: cartDiscount, net: cartNet } = summarizeCartPromotions(
     items,
     rules,
+    productRules,
   );
 
   return (
@@ -72,7 +73,7 @@ export default function CartPage() {
               </div>
 
               {items.map((item) => {
-                const pr = getCartLinePromoPricing(item, rules);
+                const pr = getCartLinePromoPricing(item, rules, productRules);
                 return (
                 <div key={item.slug} className="bg-white border border-slate-200 rounded-lg p-4">
                   {/* Mobile layout */}

@@ -7,7 +7,7 @@ import ProductGrid from "@/components/shop/ProductGrid";
 import ProductQuickView from "@/components/shop/ProductQuickView";
 import ShopPagination from "@/components/shop/ShopPagination";
 import { mapApiItemToProduct } from "@/components/shop/shopData";
-import { getCategoriesWithItemCount, getAllItemsForWeb } from "@/lib/shopApi";
+import { getCategoriesWithItemCount, getAllItemsForWeb, resolveWebItemById } from "@/lib/shopApi";
 
 const PAGE_SIZE_OPTIONS = [8, 12, 16, 24, 32];
 const DEFAULT_PAGE_SIZE = 12;
@@ -25,6 +25,7 @@ export default function ShopClient() {
   const subIdParam = searchParams.get("sub");
   const queryParam = (searchParams.get("q") ?? "").trim();
   const pageParam = searchParams.get("page");
+  const deepLinkItemId = parseId(searchParams.get("item"));
 
   const selectedCategoryId = parseId(categoryIdParam);
   const selectedSubCategoryId = parseId(subIdParam);
@@ -161,6 +162,33 @@ export default function ShopClient() {
     });
     return { byCat, bySub };
   }, [categories]);
+
+  useEffect(() => {
+    if (!deepLinkItemId) return undefined;
+    let cancelled = false;
+    resolveWebItemById(deepLinkItemId)
+      .then((raw) => {
+        if (cancelled || !raw) return;
+        const catName = categoryNames.byCat.get(raw.categoryId) ?? "";
+        const subName = categoryNames.bySub.get(raw.subCategoryId) ?? "";
+        const product = mapApiItemToProduct(raw, catName, subName);
+        if (product) setQuickViewProduct(product);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [deepLinkItemId, categoryNames]);
+
+  const handleCloseQuickView = useCallback(() => {
+    setQuickViewProduct(null);
+    if (deepLinkItemId != null) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("item");
+      const qs = params.toString();
+      router.replace(qs ? `/shop?${qs}` : "/shop", { scroll: false });
+    }
+  }, [deepLinkItemId, searchParams, router]);
 
   const products = useMemo(() => {
     return itemsData.items.map((item) => {
@@ -371,7 +399,7 @@ export default function ShopClient() {
       {quickViewProduct && (
         <ProductQuickView
           product={quickViewProduct}
-          onClose={() => setQuickViewProduct(null)}
+          onClose={handleCloseQuickView}
         />
       )}
     </main>

@@ -11,7 +11,7 @@ import { getCartLinePromoPricing, summarizeCartPromotions } from "@/lib/category
 export default function CartDrawer() {
   const router = useRouter();
   const { items, totalItems, setQty, removeFromCart, setCheckoutSelection, drawerOpen, closeDrawer } = useCart();
-  const { rules } = useCategoryPromotions();
+  const { rules, productRules } = useCategoryPromotions();
   const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
 
   // When drawer opens or items change, default to all selected
@@ -48,13 +48,13 @@ export default function CartDrawer() {
         selectedItems.push(item);
       }
     });
-    const { discount, net } = summarizeCartPromotions(selectedItems, rules);
+    const { discount, net } = summarizeCartPromotions(selectedItems, rules, productRules);
     return {
       selectedCount: count,
       selectedSubtotal: net,
       selectedDiscount: discount,
     };
-  }, [items, selectedSlugs, rules]);
+  }, [items, selectedSlugs, rules, productRules]);
 
   useEffect(() => {
     if (drawerOpen) {
@@ -145,7 +145,7 @@ export default function CartDrawer() {
             <ul className="space-y-4">
               {items.map((item) => {
                 const isSelected = selectedSlugs.has(item.slug);
-                const pr = getCartLinePromoPricing(item, rules);
+                const pr = getCartLinePromoPricing(item, rules, productRules);
                 return (
                 <li key={item.slug} className={`flex gap-3 bg-slate-50 border rounded-lg p-3 ${isSelected ? "border-slate-200" : "border-slate-200 opacity-75"}`}>
                   <div className="flex items-start pt-0.5">

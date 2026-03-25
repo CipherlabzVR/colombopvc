@@ -5,21 +5,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   getPublicPromotionById,
+  normalizePublicPromotion,
   getPromotionCategoryLabel,
   formatPromotionDate,
   formatDiscountLine,
   normalizePromotionCategoryKey,
 } from "@/lib/promotionsApi";
-
-function prettyJson(maybeJson) {
-  if (!maybeJson) return null;
-  try {
-    const obj = typeof maybeJson === "string" ? JSON.parse(maybeJson) : maybeJson;
-    return JSON.stringify(obj, null, 2);
-  } catch {
-    return String(maybeJson);
-  }
-}
 
 export default function EcomPromotionDetailPage() {
   const params = useParams();
@@ -35,7 +26,7 @@ export default function EcomPromotionDetailPage() {
     getPublicPromotionById(id)
       .then((p) => {
         if (!p) setError("notfound");
-        else setPromo(p);
+        else setPromo(normalizePublicPromotion(p) ?? p);
       })
       .catch((e) => setError(e.message || "failed"))
       .finally(() => setLoading(false));
@@ -65,7 +56,14 @@ export default function EcomPromotionDetailPage() {
 
   const catKey = normalizePromotionCategoryKey(promo.promotionCategory);
   const lines = Array.isArray(promo.promotionCategoryLines) ? promo.promotionCategoryLines : [];
-  const settingsPretty = prettyJson(promo.promotionTypeSettingsJson);
+  const categoryLines = lines.filter((l) => {
+    const cid = l.categoryId ?? l.CategoryId;
+    return cid != null && cid !== "";
+  });
+  const productLines = lines.filter((l) => {
+    const iid = l.itemId ?? l.ItemId;
+    return iid != null && iid !== "";
+  });
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -121,7 +119,7 @@ export default function EcomPromotionDetailPage() {
           ) : null}
         </dl>
 
-        {lines.length > 0 && (
+        {categoryLines.length > 0 && (
           <section className="mb-8" aria-labelledby="category-offers-heading">
             <h2 id="category-offers-heading" className="text-lg font-semibold text-slate-900 mb-3">
               Category offers
@@ -135,7 +133,7 @@ export default function EcomPromotionDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((line) => (
+                  {categoryLines.map((line) => (
                     <tr key={line.id ?? `${line.categoryId}-${line.value}`} className="border-b border-slate-100 last:border-0">
                       <td className="px-4 py-3 text-slate-800">{line.categoryName || `Category #${line.categoryId}`}</td>
                       <td className="px-4 py-3 text-slate-800">{formatDiscountLine(line)}</td>
@@ -147,14 +145,43 @@ export default function EcomPromotionDetailPage() {
           </section>
         )}
 
-        {settingsPretty && (
-          <section className="mb-8" aria-labelledby="offer-details-heading">
-            <h2 id="offer-details-heading" className="text-lg font-semibold text-slate-900 mb-3">
-              Offer details
+        {productLines.length > 0 && (
+          <section className="mb-8" aria-labelledby="product-offers-heading">
+            <h2 id="product-offers-heading" className="text-lg font-semibold text-slate-900 mb-3">
+              Product offers
             </h2>
-            <pre className="text-xs sm:text-sm bg-slate-900 text-slate-100 rounded-xl p-4 overflow-x-auto whitespace-pre-wrap">
-              {settingsPretty}
-            </pre>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                    <th className="px-4 py-3 font-semibold text-slate-700">Item</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Discount</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700 w-32">Shop</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productLines.map((line) => {
+                    const itemId = line.itemId ?? line.ItemId;
+                    const shopHref = `/shop?item=${Number(itemId)}`;
+                    const label = line.itemName || line.ItemName || `Item #${itemId}`;
+                    return (
+                      <tr key={line.id ?? `item-${itemId}-${line.value}`} className="border-b border-slate-100 last:border-0">
+                        <td className="px-4 py-3 text-slate-800">{label}</td>
+                        <td className="px-4 py-3 text-slate-800">{formatDiscountLine(line)}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={shopHref}
+                            className="font-medium text-emerald-700 hover:text-emerald-800 underline-offset-2 hover:underline"
+                          >
+                            View in shop
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 

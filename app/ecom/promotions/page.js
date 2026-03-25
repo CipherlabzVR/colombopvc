@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   getPublicPromotionsPageData,
   shopHrefForCategory,
-  shopHrefForPromotedItem,
+  getProductPromotionShopHref,
   getPromotionCategoryLabel,
   formatPromotionDate,
   isCategoryDiscountPromotion,
@@ -19,23 +19,36 @@ const CARD_GRID_CLASS =
   "mx-auto grid w-max max-w-full grid-cols-[repeat(2,max-content)] gap-x-2 gap-y-2 sm:grid-cols-[repeat(3,max-content)] sm:gap-x-2 sm:gap-y-2";
 
 const CARD_LINK_CLASS =
-  "group flex h-full w-[168px] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-slate-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D1B3E]/30 focus-visible:ring-offset-2 sm:w-[200px]";
+  "group flex h-full w-[168px] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-slate-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D1B3E]/30 focus-visible:ring-offset-2 sm:w-[200px] cursor-pointer text-left no-underline text-inherit";
 
-function PromotionOfferCard({ href, imageUrl, title, discountLabel, endDate, caption, ariaLabel }) {
+function PromotionOfferCard({
+  href,
+  imageUrl,
+  title,
+  discountLabel,
+  endDate,
+  caption,
+  ariaLabel,
+  scroll = true,
+  prefetch = false,
+}) {
   const foot = caption?.trim() || null;
   return (
     <li className="min-w-0">
       <Link
         href={href}
+        scroll={scroll}
+        prefetch={prefetch}
         className={CARD_LINK_CLASS}
         aria-label={ariaLabel}
       >
-        <div className="relative h-24 w-full shrink-0 overflow-hidden bg-slate-100 sm:h-28">
+        <div className="relative h-24 w-full shrink-0 overflow-hidden bg-slate-100 sm:h-28 pointer-events-none">
           {/* eslint-disable-next-line @next/next/no-img-element -- CDN / placeholder URLs */}
           <img
             src={imageUrl}
             alt=""
-            className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.02]"
+            draggable={false}
+            className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.02] select-none"
             loading="lazy"
           />
         </div>
@@ -177,11 +190,11 @@ export default function EcomPromotionsPage() {
             </h2>
             <ul className={CARD_GRID_CLASS}>
               {productCards.map((c) => {
-                const href = c.href ?? shopHrefForPromotedItem(c.itemName, c.itemCode);
+                const href = getProductPromotionShopHref(c);
                 const aria =
                   c.href != null
                     ? `${c.promotionName || c.itemName || "Promotion"}: ${c.discountLabel}`
-                    : `Shop ${c.itemName}, ${c.discountLabel}`;
+                    : `Open ${c.itemName} in shop — ${c.discountLabel}`;
                 return (
                   <PromotionOfferCard
                     key={c.key}
