@@ -22,6 +22,10 @@ import {
   computeBestCombinedLinePromotion,
   summarizeCartPromotions,
 } from "@/lib/categoryPromotionPricing";
+import {
+  getPublicTotalAmountCouponAvailability,
+  previewTotalAmountCoupon,
+} from "@/lib/promotionsApi";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -37,8 +41,8 @@ function getStoredUser() {
   }
 }
 
+/** Standard delivery charge (no automatic “free” threshold — free delivery should come from configured promotions only). */
 const DELIVERY_FEE = 350;
-const FREE_DELIVERY_MIN = 5000;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -49,7 +53,7 @@ function generateOrderId() {
 export default function CheckoutPage() {
   const router = useRouter();
   const { itemsForCheckout, removeFromCart, setCheckoutSelection } = useCart();
-  const { rules } = useCategoryPromotions();
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
@@ -75,10 +79,20 @@ export default function CheckoutPage() {
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
 
+  const [couponSectionEnabled, setCouponSectionEnabled] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponApplying, setCouponApplying] = useState(false);
+
   useEffect(() => {
     const stored = getStoredUser();
     setUser(stored);
     setAuthChecked(true);
+  }, []);
+
+  useEffect(() => {
+    getPublicTotalAmountCouponAvailability().then(setCouponSectionEnabled);
   }, []);
 
   // Pre-fill contact info when user is set (e.g. after sign-in or on load)
@@ -148,13 +162,41 @@ export default function CheckoutPage() {
 
   const totalItems = itemsForCheckout.reduce((s, i) => s + i.qty, 0);
   const grossMerchandise = itemsForCheckout.reduce((s, i) => s + i.price * i.qty, 0);
-  const { discount: promotionDiscount, net: merchandiseNet } = summarizeCartPromotions(
-    itemsForCheckout,
-    rules,
-    productRules,
-  );
-  const deliveryFee = grossMerchandise >= FREE_DELIVERY_MIN ? 0 : DELIVERY_FEE;
-  const grandTotal = merchandiseNet + deliveryFee;
+  const {
+    discount: promotionDiscount,
+    net: merchandiseNet,
+    lineDiscount: linePromotionDiscount,
+    orderDiscount: orderTotalPromotionDiscount,
+  } = summarizeCartPromotions(itemsForCheckout, rules, productRules, totalAmountRules);
+
+  const couponDiscount = appliedCoupon?.discount ?? 0;
+  const finalMerchandiseNet = Math.max(0, Math.round((merchandiseNet - couponDiscount) * 100) / 100);
+  const deliveryFee = DELIVERY_FEE;
+  const grandTotal = Math.round((finalMerchandiseNet + deliveryFee) * 100) / 100;
+  const allPromotionDiscount = Math.round((linePromotionDiscount + orderTotalPromotionDiscount + couponDiscount) * 100) / 100;
+
+  useEffect(() => {
+    const code = appliedCoupon?.code;
+    if (!code) return undefined;
+    let cancelled = false;
+    (async () => {
+      const r = await previewTotalAmountCoupon({
+        couponCode: code,
+        merchandiseNetAfterLineAndTier: merchandiseNet,
+      });
+      if (cancelled) return;
+      if (r.valid && r.couponDiscount > 0) {
+        setAppliedCoupon({ code, discount: r.couponDiscount });
+        setCouponError("");
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(r.message || "Coupon no longer applies to this cart.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [merchandiseNet, appliedCoupon?.code]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -163,6 +205,34 @@ export default function CheckoutPage() {
       [name]: name === "paymentMethod" ? Number(value) : value,
     }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  async function handleApplyCoupon() {
+    setCouponError("");
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError("Enter a coupon code.");
+      return;
+    }
+    setCouponApplying(true);
+    try {
+      const r = await previewTotalAmountCoupon({
+        couponCode: code,
+        merchandiseNetAfterLineAndTier: merchandiseNet,
+      });
+      if (!r.valid || !(r.couponDiscount > 0)) {
+        setAppliedCoupon(null);
+        setCouponError(r.message || "Invalid or expired coupon.");
+        return;
+      }
+      setAppliedCoupon({ code, discount: r.couponDiscount });
+      setCouponError("");
+    } catch (err) {
+      setAppliedCoupon(null);
+      setCouponError(err?.message ?? "Could not apply coupon.");
+    } finally {
+      setCouponApplying(false);
+    }
   }
 
   function validate() {
@@ -182,7 +252,14 @@ export default function CheckoutPage() {
 
   const lines = itemsForCheckout.map((i) => {
     const lineGross = Number(i.price) * Number(i.qty);
-    const promo = computeBestCategoryLinePromotion(lineGross, i.qty, i.categoryId, rules);
+    const promo = computeBestCombinedLinePromotion(
+      lineGross,
+      i.qty,
+      i.categoryId,
+      i.id,
+      rules,
+      productRules,
+    );
     const base = {
       ProductId: i.id ?? 0,
       ProductName: i.name ?? "",
@@ -220,13 +297,14 @@ export default function CheckoutPage() {
     setErrors({});
 
     const orderPayload = {
-      SubTotal: merchandiseNet,
+      SubTotal: finalMerchandiseNet,
       DeliveryCharge: deliveryFee,
       NetTotal: grandTotal,
       DiscountRate: null,
-      DiscountAmount: promotionDiscount > 0 ? promotionDiscount : null,
+      DiscountAmount: allPromotionDiscount > 0 ? allPromotionDiscount : null,
       OrderStatus: 1,
       PaymentOption: paymentOption,
+      CouponCode: appliedCoupon?.code ?? null,
       Lines: lines,
     };
 
@@ -692,36 +770,91 @@ export default function CheckoutPage() {
                   ))}
                 </ul>
 
+                {couponSectionEnabled && (
+                  <div className="border-t border-slate-200 pt-4 mb-4 space-y-2">
+                    <p className="text-xs font-medium text-slate-600">Have a coupon?</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => {
+                          setCouponInput(e.target.value);
+                          setCouponError("");
+                        }}
+                        placeholder="Coupon code"
+                        className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-300 rounded-md text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponApplying}
+                        className="shrink-0 px-3 py-2 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md disabled:opacity-50"
+                      >
+                        {couponApplying ? "…" : "Apply"}
+                      </button>
+                    </div>
+                    {appliedCoupon?.code && (
+                      <div className="flex items-center justify-between text-xs text-emerald-700">
+                        <span>
+                          Applied: <span className="font-semibold">{appliedCoupon.code}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedCoupon(null);
+                            setCouponInput("");
+                            setCouponError("");
+                          }}
+                          className="text-slate-500 hover:text-red-600 underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                    {couponError && <p className="text-xs text-red-600">{couponError}</p>}
+                  </div>
+                )}
+
                 <div className="border-t border-slate-200 pt-4 space-y-2 text-sm">
-                  {promotionDiscount > 0 && (
+                  {(linePromotionDiscount > 0 || orderTotalPromotionDiscount > 0 || couponDiscount > 0) && (
                     <div className="flex justify-between text-slate-600">
                       <span>Merchandise</span>
                       <span className="font-medium text-slate-800">{formatRs(grossMerchandise)}</span>
                     </div>
                   )}
-                  {promotionDiscount > 0 && (
+                  {linePromotionDiscount > 0 && (
                     <div className="flex justify-between text-emerald-700">
-                      <span>Promotion savings</span>
-                      <span className="font-semibold">−{formatRs(promotionDiscount)}</span>
+                      <span>Item promotion savings</span>
+                      <span className="font-semibold">−{formatRs(linePromotionDiscount)}</span>
+                    </div>
+                  )}
+                  {orderTotalPromotionDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Total amount based discount</span>
+                      <span className="font-semibold">−{formatRs(orderTotalPromotionDiscount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal ({totalItems} items)</span>
                     <span className="font-medium text-slate-800">{formatRs(merchandiseNet)}</span>
                   </div>
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Coupon discount</span>
+                      <span className="font-semibold">−{formatRs(couponDiscount)}</span>
+                    </div>
+                  )}
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between text-slate-800 font-semibold border-t border-dashed border-slate-200 pt-2">
+                      <span>Merchandise total</span>
+                      <span>{formatRs(finalMerchandiseNet)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Delivery</span>
-                    {deliveryFee === 0 ? (
-                      <span className="font-medium text-emerald-600">FREE</span>
-                    ) : (
-                      <span className="font-medium text-slate-800">{formatRs(deliveryFee)}</span>
-                    )}
+                    <span className="font-medium text-slate-800">{formatRs(deliveryFee)}</span>
                   </div>
-                  {deliveryFee > 0 && (
-                    <p className="text-xs text-emerald-600">
-                      Free delivery on orders above {formatRs(FREE_DELIVERY_MIN)}
-                    </p>
-                  )}
                 </div>
 
                 <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-center">

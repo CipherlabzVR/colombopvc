@@ -41,9 +41,9 @@ export default function BlogPage() {
 
         {!loading && !error && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {items.map((post) => (
+            {items.map((post, index) => (
               <Link
-                key={post.slug || post.id}
+                key={post.id != null ? `blog-${post.id}` : `blog-${index}-${post.slug ?? ""}`}
                 href={`/blog/${post.slug}`}
                 className="group bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all border border-slate-100 flex flex-col"
               >

@@ -31,9 +31,9 @@ export default function BlogPostSection() {
 
       <div className="max-w-6xl mx-auto px-2 sm:px-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 font-poppins">
-          {posts.map((post) => (
+          {posts.map((post, index) => (
             <article
-              key={post.slug || post.id}
+              key={post.id != null ? `blog-${post.id}` : `blog-${index}-${post.slug ?? ""}`}
               className="group bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all border border-slate-100 flex flex-col"
             >
               <Link href={`/blog/${post.slug}`} className="flex flex-1 flex-col">

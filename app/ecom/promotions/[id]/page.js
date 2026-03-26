@@ -10,6 +10,7 @@ import {
   formatPromotionDate,
   formatDiscountLine,
   normalizePromotionCategoryKey,
+  formatTotalAmountTierReward,
 } from "@/lib/promotionsApi";
 
 export default function EcomPromotionDetailPage() {
@@ -65,6 +66,13 @@ export default function EcomPromotionDetailPage() {
     return iid != null && iid !== "";
   });
 
+  const totalAmountLines = Array.isArray(promo.promotionTotalAmountLines)
+    ? [...promo.promotionTotalAmountLines].sort(
+        (a, b) =>
+          Number(a.billValue ?? a.BillValue ?? 0) - Number(b.billValue ?? b.BillValue ?? 0),
+      )
+    : [];
+
   return (
     <main className="min-h-screen bg-slate-50">
       <style>{`
@@ -93,6 +101,16 @@ export default function EcomPromotionDetailPage() {
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">{promo.name}</h1>
 
         {promo.description && <p className="text-slate-600 leading-relaxed mb-6">{promo.description}</p>}
+
+        {catKey === "TotalAmountBased" && totalAmountLines.length > 0 && (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 mb-6">
+            <p className="text-sm font-medium text-emerald-950 mb-1">How it works</p>
+            <p className="text-sm text-emerald-900/90 leading-relaxed">
+              Savings apply to your merchandise subtotal before delivery. At checkout we use the best tier your cart still
+              qualifies for — see the table below.
+            </p>
+          </div>
+        )}
 
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-8">
           <div className="bg-white rounded-lg border border-slate-100 p-4">
@@ -139,6 +157,42 @@ export default function EcomPromotionDetailPage() {
                       <td className="px-4 py-3 text-slate-800">{formatDiscountLine(line)}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {totalAmountLines.length > 0 && (
+          <section className="mb-8" aria-labelledby="order-total-tiers-heading">
+            <h2 id="order-total-tiers-heading" className="text-lg font-semibold text-slate-900 mb-1">
+              Spend tiers
+            </h2>
+            <p className="text-sm text-slate-600 mb-3">
+              Merchandise subtotal caps (before delivery). Your cart qualifies for the highest tier it still fits under.
+            </p>
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                    <th className="px-4 py-3 font-semibold text-slate-700">Merchandise up to</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Discount on cart</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {totalAmountLines.map((line) => {
+                    const bill = Number(line.billValue ?? line.BillValue);
+                    const billLabel = Number.isFinite(bill) ? `Rs. ${bill.toLocaleString("en-LK")}` : "—";
+                    return (
+                      <tr
+                        key={line.id ?? `${bill}-${line.value}`}
+                        className="border-b border-slate-100 last:border-0"
+                      >
+                        <td className="px-4 py-3 text-slate-800 tabular-nums">{billLabel}</td>
+                        <td className="px-4 py-3 text-slate-800 font-medium">{formatTotalAmountTierReward(line)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

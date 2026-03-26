@@ -11,7 +11,7 @@ import { getCartLinePromoPricing, summarizeCartPromotions } from "@/lib/category
 export default function CartDrawer() {
   const router = useRouter();
   const { items, totalItems, setQty, removeFromCart, setCheckoutSelection, drawerOpen, closeDrawer } = useCart();
-  const { rules, productRules } = useCategoryPromotions();
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
   const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
 
   // When drawer opens or items change, default to all selected
@@ -48,13 +48,13 @@ export default function CartDrawer() {
         selectedItems.push(item);
       }
     });
-    const { discount, net } = summarizeCartPromotions(selectedItems, rules, productRules);
+    const { discount, net } = summarizeCartPromotions(selectedItems, rules, productRules, totalAmountRules);
     return {
       selectedCount: count,
       selectedSubtotal: net,
       selectedDiscount: discount,
     };
-  }, [items, selectedSlugs, rules, productRules]);
+  }, [items, selectedSlugs, rules, productRules, totalAmountRules]);
 
   useEffect(() => {
     if (drawerOpen) {

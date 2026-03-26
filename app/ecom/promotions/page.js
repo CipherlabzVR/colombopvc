@@ -10,6 +10,8 @@ import {
   formatPromotionDate,
   isCategoryDiscountPromotion,
   isProductBasedPromotion,
+  isTotalAmountCouponPromotion,
+  isTotalAmountDiscountPromotion,
 } from "@/lib/promotionsApi";
 
 /** Navy aligned with site header */
@@ -20,6 +22,27 @@ const CARD_GRID_CLASS =
 
 const CARD_LINK_CLASS =
   "group flex h-full w-[168px] flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-slate-50 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-slate-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D1B3E]/30 focus-visible:ring-offset-2 sm:w-[200px] cursor-pointer text-left no-underline text-inherit";
+
+/** Inline SVG — cart / order total (no extra deps). */
+function IconOrderTotal({ className = "h-9 w-9" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M4 7h16l-1.2 9.04A2 2 0 0116.82 18H7.18a2 2 0 01-1.98-1.96L4 7z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9 11V5a3 3 0 116 0v6"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+      <path d="M7 21h10" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function PromotionOfferCard({
   href,
@@ -91,6 +114,7 @@ export default function EcomPromotionsPage() {
         const others = promotions.filter((p) => {
           if (isCategoryDiscountPromotion(p) && catPromoIds.has(p.id)) return false;
           if (isProductBasedPromotion(p) && prodPromoIds.has(p.id)) return false;
+          if (isTotalAmountCouponPromotion(p)) return false;
           return true;
         });
         setOtherPromotions(others);
@@ -217,24 +241,110 @@ export default function EcomPromotionsPage() {
             className={hasAnyCards ? "mt-12 pt-8 border-t border-slate-100" : ""}
             aria-labelledby="other-promos-heading"
           >
-            <h2 id="other-promos-heading" className={`text-sm font-semibold ${TEXT_PRIMARY} mb-3`}>
+            <h2
+              id="other-promos-heading"
+              className={`text-base sm:text-lg font-semibold ${TEXT_PRIMARY} mb-4 tracking-tight`}
+            >
               {hasAnyCards ? "Other promotions" : "Current promotions"}
             </h2>
-            <ul className="space-y-2">
-              {otherPromotions.map((p) => (
-                <li key={p.id}>
-                  <Link
-                    href={`/ecom/promotions/${p.id}`}
-                    className="flex flex-wrap items-baseline justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm hover:bg-slate-100/80 transition-colors"
-                  >
-                    <span className={`font-medium ${TEXT_PRIMARY}`}>{p.name || "Promotion"}</span>
-                    <span className="text-xs text-slate-500">
-                      {getPromotionCategoryLabel(p.promotionCategory)}
-                      {p.couponCode ? ` · ${p.couponCode}` : ""}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+            <ul className="space-y-4 max-w-3xl">
+              {otherPromotions.map((p) => {
+                const isOrderTotalOffer =
+                  isTotalAmountDiscountPromotion(p) && !isTotalAmountCouponPromotion(p);
+                const title = p.name?.trim() || "Promotion";
+                const desc = String(p.description ?? "").trim();
+                const tierParts = p.totalAmountSummary
+                  ? String(p.totalAmountSummary)
+                      .split(" · ")
+                      .map((s) => s.trim())
+                      .filter(Boolean)
+                  : [];
+                return (
+                  <li key={p.id}>
+                    <Link
+                      href={`/ecom/promotions/${p.id}`}
+                      className={`block rounded-2xl border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D1B3E]/35 focus-visible:ring-offset-2 ${
+                        isOrderTotalOffer
+                          ? "group border-slate-200/90 bg-white shadow-[0_4px_24px_-6px_rgba(15,23,42,0.1)] hover:border-[#0D1B3E]/25 hover:shadow-[0_16px_48px_-12px_rgba(13,27,62,0.18)] overflow-hidden"
+                          : "rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 hover:bg-slate-100/80 hover:border-slate-300"
+                      }`}
+                    >
+                      {isOrderTotalOffer ? (
+                        <div className="flex flex-col sm:flex-row sm:min-h-[140px]">
+                          <div className="relative flex items-center justify-center gap-3 bg-linear-to-br from-[#0D1B3E] via-[#152a52] to-[#1a3a6e] px-8 py-8 sm:w-[min(30%,200px)] sm:shrink-0 sm:py-6">
+                            <div
+                              className="absolute inset-0 opacity-[0.12]"
+                              style={{
+                                backgroundImage:
+                                  "radial-gradient(circle at 20% 20%, #FFB000 0%, transparent 45%), radial-gradient(circle at 80% 80%, #fff 0%, transparent 40%)",
+                              }}
+                            />
+                            <IconOrderTotal className="relative h-11 w-11 text-amber-300/95 drop-shadow-sm" />
+                          </div>
+                          <div className="flex flex-1 flex-col justify-center gap-3 p-5 sm:p-6 sm:pl-7">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <h3
+                                className={`text-lg sm:text-xl font-bold capitalize tracking-tight ${TEXT_PRIMARY} leading-tight`}
+                              >
+                                {title}
+                              </h3>
+                              <span className="shrink-0 rounded-full border border-amber-200/80 bg-linear-to-r from-amber-50 to-amber-100/90 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-950 shadow-sm">
+                                Order total
+                              </span>
+                            </div>
+                            {tierParts.length > 1 ? (
+                              <ul className="space-y-2.5">
+                                {tierParts.map((part, idx) => (
+                                  <li key={idx} className="flex gap-3 text-sm leading-snug text-slate-700">
+                                    <span
+                                      className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-linear-to-br from-amber-400 to-amber-600 shadow-sm"
+                                      aria-hidden
+                                    />
+                                    <span>{part}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : p.totalAmountSummary ? (
+                              <p className="text-[15px] sm:text-base font-medium leading-relaxed text-slate-800">
+                                {p.totalAmountSummary}
+                              </p>
+                            ) : (
+                              <p className="text-sm leading-relaxed text-slate-600">
+                                Save on your merchandise total when your cart reaches the spend tiers. Open this offer for
+                                full tier details and dates.
+                              </p>
+                            )}
+                            {desc ? (
+                              <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed border-t border-slate-100 pt-3">
+                                {desc}
+                              </p>
+                            ) : null}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                              <span className="text-xs font-medium text-slate-400">
+                                Applied at checkout on merchandise subtotal
+                              </span>
+                              <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D1B3E] transition-[gap] group-hover:gap-2.5">
+                                View details
+                                <span aria-hidden className="inline-block translate-x-0 transition-transform group-hover:translate-x-0.5">
+                                  →
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className={`font-medium ${TEXT_PRIMARY}`}>{title}</span>
+                          <span className="text-xs text-slate-500">
+                            {getPromotionCategoryLabel(p.promotionCategory)}
+                            {p.couponCode ? ` · ${p.couponCode}` : ""}
+                          </span>
+                        </div>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

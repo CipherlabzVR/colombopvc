@@ -11,12 +11,13 @@ import {
 
 export default function CartPage() {
   const { items, totalItems, setQty, removeFromCart, clearCart } = useCart();
-  const { rules, productRules } = useCategoryPromotions();
-  const { gross: cartGross, discount: cartDiscount, net: cartNet } = summarizeCartPromotions(
-    items,
-    rules,
-    productRules,
-  );
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
+  const {
+    gross: cartGross,
+    net: cartNet,
+    lineDiscount: cartLinePromo,
+    orderDiscount: cartOrderPromo,
+  } = summarizeCartPromotions(items, rules, productRules, totalAmountRules);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -197,16 +198,22 @@ export default function CartPage() {
               <div className="bg-white border border-slate-200 rounded-lg p-5 lg:sticky lg:top-6">
                 <h2 className="text-lg font-bold text-slate-900 mb-4">Order Summary</h2>
                 <div className="space-y-2 text-sm">
-                  {cartDiscount > 0 && (
+                  {(cartLinePromo > 0 || cartOrderPromo > 0) && (
                     <div className="flex justify-between text-slate-600">
                       <span>Merchandise</span>
                       <span className="font-medium text-slate-800">{formatRs(cartGross)}</span>
                     </div>
                   )}
-                  {cartDiscount > 0 && (
+                  {cartLinePromo > 0 && (
                     <div className="flex justify-between text-emerald-700">
-                      <span>Promotion savings</span>
-                      <span className="font-semibold">−{formatRs(cartDiscount)}</span>
+                      <span>Item promotion savings</span>
+                      <span className="font-semibold">−{formatRs(cartLinePromo)}</span>
+                    </div>
+                  )}
+                  {cartOrderPromo > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Total amount based discount</span>
+                      <span className="font-semibold">−{formatRs(cartOrderPromo)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-slate-600">
