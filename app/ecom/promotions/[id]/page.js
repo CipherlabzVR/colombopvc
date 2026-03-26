@@ -106,7 +106,7 @@ export default function EcomPromotionDetailPage() {
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4 mb-6">
             <p className="text-sm font-medium text-emerald-950 mb-1">How it works</p>
             <p className="text-sm text-emerald-900/90 leading-relaxed">
-              Savings apply to your merchandise subtotal before delivery. At checkout we use the best tier your cart still
+              Savings apply to your order subtotal before delivery. At checkout we use the best tier your cart still
               qualifies for — see the table below.
             </p>
           </div>
@@ -169,13 +169,13 @@ export default function EcomPromotionDetailPage() {
               Spend tiers
             </h2>
             <p className="text-sm text-slate-600 mb-3">
-              Merchandise subtotal caps (before delivery). Your cart qualifies for the highest tier it still fits under.
+              Order subtotal caps (before delivery). Your cart qualifies for the highest tier it still fits under.
             </p>
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                    <th className="px-4 py-3 font-semibold text-slate-700">Merchandise up to</th>
+                    <th className="px-4 py-3 font-semibold text-slate-700">Order up to</th>
                     <th className="px-4 py-3 font-semibold text-slate-700">Discount on cart</th>
                   </tr>
                 </thead>

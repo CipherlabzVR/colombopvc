@@ -97,9 +97,11 @@ export default function CartPage() {
                               {formatRs(pr.unitSale)}
                             </span>
                           </div>
-                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
-                            Promo price
-                          </span>
+                          {pr.priceLabel && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
+                              {pr.priceLabel}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <p className="text-sm font-bold text-rose-600 mt-1 tabular-nums">{formatRs(item.price)}</p>
@@ -116,15 +118,15 @@ export default function CartPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-bold text-slate-900">
-                            {pr.hasPromo ? (
+                            {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
                               <span className="inline-flex flex-col items-end">
                                 <span className="text-xs text-slate-400 line-through font-medium tabular-nums">
-                                  {formatRs(pr.lineGross)}
+                                  {formatRs(pr.lineTotalStrikeGross)}
                                 </span>
                                 <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
                               </span>
                             ) : (
-                              <span className="tabular-nums">{formatRs(pr.lineGross)}</span>
+                              <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
                             )}
                           </span>
                           <button onClick={() => removeFromCart(item.slug)} className="p-1 text-slate-400 hover:text-red-500 transition-colors" aria-label="Remove">
@@ -153,7 +155,11 @@ export default function CartPage() {
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-xs text-slate-400 line-through tabular-nums">{formatRs(pr.unitList)}</span>
                           <span className="font-bold text-emerald-700 tabular-nums">{formatRs(pr.unitSale)}</span>
-                          <span className="text-[10px] font-semibold uppercase text-emerald-600">Promo</span>
+                          {pr.priceLabel && (
+                            <span className="text-[10px] font-semibold uppercase text-emerald-600">
+                              {pr.wholesaleActive && !pr.hasPromoDiscount ? "Wholesale" : "Promo"}
+                            </span>
+                          )}
                         </div>
                       </div>
                     ) : (
@@ -173,15 +179,15 @@ export default function CartPage() {
                       </div>
                     </div>
                     <span className="text-sm font-bold text-slate-900 text-right">
-                      {pr.hasPromo ? (
+                      {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
                         <span className="inline-flex flex-col items-end">
                           <span className="text-xs text-slate-400 line-through font-medium tabular-nums">
-                            {formatRs(pr.lineGross)}
+                            {formatRs(pr.lineTotalStrikeGross)}
                           </span>
                           <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
                         </span>
                       ) : (
-                        <span className="tabular-nums">{formatRs(pr.lineGross)}</span>
+                        <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
                       )}
                     </span>
                     <button onClick={() => removeFromCart(item.slug)} className="p-1 text-slate-400 hover:text-red-500 transition-colors justify-self-center" aria-label="Remove">
@@ -200,7 +206,7 @@ export default function CartPage() {
                 <div className="space-y-2 text-sm">
                   {(cartLinePromo > 0 || cartOrderPromo > 0) && (
                     <div className="flex justify-between text-slate-600">
-                      <span>Merchandise</span>
+                      <span>Order</span>
                       <span className="font-medium text-slate-800">{formatRs(cartGross)}</span>
                     </div>
                   )}

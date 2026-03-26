@@ -22,6 +22,7 @@ import {
   computeBestCombinedLinePromotion,
   summarizeCartPromotions,
 } from "@/lib/categoryPromotionPricing";
+import { effectiveUnitPriceForCartLine } from "@/components/shop/shopData";
 import {
   getPublicTotalAmountCouponAvailability,
   previewTotalAmountCoupon,
@@ -161,7 +162,10 @@ export default function CheckoutPage() {
   }, [selectedAddressId, savedAddresses]);
 
   const totalItems = itemsForCheckout.reduce((s, i) => s + i.qty, 0);
-  const grossMerchandise = itemsForCheckout.reduce((s, i) => s + i.price * i.qty, 0);
+  const grossMerchandise = itemsForCheckout.reduce(
+    (s, i) => s + effectiveUnitPriceForCartLine(i) * i.qty,
+    0,
+  );
   const {
     discount: promotionDiscount,
     net: merchandiseNet,
@@ -251,7 +255,8 @@ export default function CheckoutPage() {
   }
 
   const lines = itemsForCheckout.map((i) => {
-    const lineGross = Number(i.price) * Number(i.qty);
+    const unitEffective = effectiveUnitPriceForCartLine(i);
+    const lineGross = unitEffective * Number(i.qty);
     const promo = computeBestCombinedLinePromotion(
       lineGross,
       i.qty,
@@ -263,7 +268,7 @@ export default function CheckoutPage() {
     const base = {
       ProductId: i.id ?? 0,
       ProductName: i.name ?? "",
-      Price: Number(i.price),
+      Price: unitEffective,
       Quantity: Number(i.qty),
       LineTotal: lineGross,
     };
@@ -819,7 +824,7 @@ export default function CheckoutPage() {
                 <div className="border-t border-slate-200 pt-4 space-y-2 text-sm">
                   {(linePromotionDiscount > 0 || orderTotalPromotionDiscount > 0 || couponDiscount > 0) && (
                     <div className="flex justify-between text-slate-600">
-                      <span>Merchandise</span>
+                      <span>Order</span>
                       <span className="font-medium text-slate-800">{formatRs(grossMerchandise)}</span>
                     </div>
                   )}
@@ -847,7 +852,7 @@ export default function CheckoutPage() {
                   )}
                   {couponDiscount > 0 && (
                     <div className="flex justify-between text-slate-800 font-semibold border-t border-dashed border-slate-200 pt-2">
-                      <span>Merchandise total</span>
+                      <span>Order total</span>
                       <span>{formatRs(finalMerchandiseNet)}</span>
                     </div>
                   )}

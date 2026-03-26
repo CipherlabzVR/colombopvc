@@ -186,13 +186,21 @@ export default function CartDrawer() {
                             {formatRs(pr.unitSale)}
                           </span>
                         </div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
-                          Promo price
-                        </span>
+                        {pr.priceLabel && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
+                            {pr.priceLabel}
+                          </span>
+                        )}
                         <p className="text-xs text-slate-600 mt-1 tabular-nums">
                           Line:{" "}
-                          <span className="text-slate-400 line-through mr-1">{formatRs(pr.lineGross)}</span>
-                          <span className="font-semibold text-slate-800">{formatRs(pr.lineNet)}</span>
+                          {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
+                            <>
+                              <span className="text-slate-400 line-through mr-1">{formatRs(pr.lineTotalStrikeGross)}</span>
+                              <span className="font-semibold text-slate-800">{formatRs(pr.lineNet)}</span>
+                            </>
+                          ) : (
+                            <span className="font-semibold text-slate-800">{formatRs(pr.lineNet)}</span>
+                          )}
                         </p>
                       </div>
                     ) : (

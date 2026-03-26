@@ -356,7 +356,7 @@ function OrderSuccessContent() {
     y += lineH;
 
     if (order.discountAmount > 0 && order.merchandiseGross != null) {
-      doc.text("Merchandise (before promo)", margin, y);
+      doc.text("Order (before promo)", margin, y);
       doc.text(formatRs(order.merchandiseGross), margin + 140, y);
       y += lineH;
       doc.setTextColor(5, 150, 105);
@@ -399,7 +399,7 @@ function OrderSuccessContent() {
       "",
       ...(order.discountAmount > 0 && order.merchandiseGross != null
         ? [
-            `*Merchandise:* ${formatRs(order.merchandiseGross)}`,
+            `*Order:* ${formatRs(order.merchandiseGross)}`,
             `*Promotion savings:* -${formatRs(order.discountAmount)}`,
           ]
         : []),
@@ -562,7 +562,7 @@ function OrderSuccessContent() {
             {order.discountAmount > 0 && order.merchandiseGross != null && (
               <>
                 <div className="flex justify-between text-slate-600">
-                  <span>Merchandise</span>
+                  <span>Order</span>
                   <span className="font-medium text-slate-800">{formatRs(order.merchandiseGross)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-700">

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { effectiveUnitPriceForCartLine } from "@/components/shop/shopData";
 
 const STORAGE_KEY = "colombo_pvc_cart";
 const TOAST_DURATION = 2500;
@@ -109,7 +110,10 @@ export function CartProvider({ children }) {
   }, []);
 
   const totalItems = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items]);
-  const totalPrice = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items]);
+  const totalPrice = useMemo(
+    () => items.reduce((s, i) => s + effectiveUnitPriceForCartLine(i) * i.qty, 0),
+    [items],
+  );
 
   const itemsForCheckout = useMemo(() => {
     if (!checkoutSelection || checkoutSelection.length === 0) return items;

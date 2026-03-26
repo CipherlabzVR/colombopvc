@@ -8,6 +8,8 @@ import {
   getProductPromotionShopHref,
   getPromotionCategoryLabel,
   formatPromotionDate,
+  formatDiscountBadgeText,
+  normalizePromotionCategoryKey,
   isCategoryDiscountPromotion,
   isProductBasedPromotion,
   isTotalAmountCouponPromotion,
@@ -44,10 +46,41 @@ function IconOrderTotal({ className = "h-9 w-9" }) {
   );
 }
 
+function promotionCardShowsImageBadge({ discountKind, discountValue, discountLabel }) {
+  if (formatDiscountBadgeText(discountKind, discountValue, discountLabel)) return true;
+  return String(discountLabel ?? "").trim() === "View offer";
+}
+
+/** Overlay on product/category promo card images — distinct styles for % vs Rs. */
+function PromotionImageDiscountBadge({ discountKind, discountValue, discountLabel }) {
+  let text = formatDiscountBadgeText(discountKind, discountValue, discountLabel);
+  if (!text && String(discountLabel ?? "").trim() === "View offer") text = "Special offer";
+  if (!text) return null;
+
+  const isPct = discountKind === "percentage";
+  const isVal = discountKind === "value";
+
+  return (
+    <span
+      className={`absolute top-2 left-2 z-10 max-w-[calc(100%-0.75rem)] truncate rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-wide text-white shadow-[0_4px_14px_-2px_rgba(15,23,42,0.45)] ring-2 ring-white/35 ${
+        isPct
+          ? "bg-linear-to-br from-emerald-500 to-teal-700"
+          : isVal
+            ? "bg-linear-to-br from-violet-600 to-indigo-800"
+            : "bg-linear-to-br from-slate-600 to-slate-900"
+      }`}
+    >
+      {text}
+    </span>
+  );
+}
+
 function PromotionOfferCard({
   href,
   imageUrl,
   title,
+  discountKind,
+  discountValue,
   discountLabel,
   endDate,
   caption,
@@ -56,6 +89,7 @@ function PromotionOfferCard({
   prefetch = false,
 }) {
   const foot = caption?.trim() || null;
+  const showImageBadge = promotionCardShowsImageBadge({ discountKind, discountValue, discountLabel });
   return (
     <li className="min-w-0">
       <Link
@@ -66,6 +100,11 @@ function PromotionOfferCard({
         aria-label={ariaLabel}
       >
         <div className="relative h-24 w-full shrink-0 overflow-hidden bg-slate-100 sm:h-28 pointer-events-none">
+          <PromotionImageDiscountBadge
+            discountKind={discountKind}
+            discountValue={discountValue}
+            discountLabel={discountLabel}
+          />
           {/* eslint-disable-next-line @next/next/no-img-element -- CDN / placeholder URLs */}
           <img
             src={imageUrl}
@@ -80,7 +119,13 @@ function PromotionOfferCard({
           <p className={`text-[11px] sm:text-xs font-medium leading-tight line-clamp-2 ${TEXT_PRIMARY}`}>
             {title}
           </p>
-          <p className={`text-sm sm:text-base font-bold tabular-nums leading-tight ${TEXT_PRIMARY}`}>
+          <p
+            className={
+              showImageBadge
+                ? "text-xs sm:text-sm font-semibold tabular-nums leading-tight text-slate-600"
+                : `text-sm sm:text-base font-bold tabular-nums leading-tight ${TEXT_PRIMARY}`
+            }
+          >
             {discountLabel}
           </p>
           {endDate ? (
@@ -97,10 +142,33 @@ function PromotionOfferCard({
   );
 }
 
+/** Compact list row for promotions without a storefront card (same style as former “other” simple rows). */
+function SimplePromotionRow({ p }) {
+  const title = p.name?.trim() || "Promotion";
+  return (
+    <li>
+      <Link
+        href={`/ecom/promotions/${p.id}`}
+        className="block rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3.5 transition-colors hover:bg-slate-100/80 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0D1B3E]/35 focus-visible:ring-offset-2"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className={`font-medium ${TEXT_PRIMARY}`}>{title}</span>
+          <span className="text-xs text-slate-500">
+            {getPromotionCategoryLabel(p.promotionCategory)}
+            {p.couponCode ? ` · ${p.couponCode}` : ""}
+          </span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
 export default function EcomPromotionsPage() {
   const [categoryCards, setCategoryCards] = useState([]);
   const [productCards, setProductCards] = useState([]);
-  const [otherPromotions, setOtherPromotions] = useState([]);
+  const [otherCategoryBased, setOtherCategoryBased] = useState([]);
+  const [otherProductBased, setOtherProductBased] = useState([]);
+  const [otherPromotionsRest, setOtherPromotionsRest] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -117,13 +185,28 @@ export default function EcomPromotionsPage() {
           if (isTotalAmountCouponPromotion(p)) return false;
           return true;
         });
-        setOtherPromotions(others);
+        const restCat = [];
+        const restProd = [];
+        const rest = [];
+        for (const p of others) {
+          const key = normalizePromotionCategoryKey(p.promotionCategory);
+          if (key === "CategoryBased") restCat.push(p);
+          else if (key === "ProductBased") restProd.push(p);
+          else rest.push(p);
+        }
+        setOtherCategoryBased(restCat);
+        setOtherProductBased(restProd);
+        setOtherPromotionsRest(rest);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const hasAnyCards = categoryCards.length > 0 || productCards.length > 0;
+  const hasCategorySection = categoryCards.length > 0 || otherCategoryBased.length > 0;
+  const hasProductSection = productCards.length > 0 || otherProductBased.length > 0;
+  const hasAnyOfferCards = categoryCards.length > 0 || productCards.length > 0;
+  const hasAnyPromotionContent =
+    hasCategorySection || hasProductSection || otherPromotionsRest.length > 0;
 
   return (
     <main className="min-h-screen bg-white">
@@ -145,8 +228,9 @@ export default function EcomPromotionsPage() {
           Promotions
         </h1>
         <p className="text-sm text-slate-500 mb-8 leading-relaxed max-w-2xl">
-          Category-wide and product-specific offers use the same discounts in cart and checkout. Tap a card to shop that
-          range or find the product; other active offers are listed at the bottom when applicable.
+          <strong className="font-semibold text-slate-600">Category Based</strong> offers apply to whole categories;{" "}
+          <strong className="font-semibold text-slate-600">Product Based</strong> offers target specific items. Discounts
+          apply in cart and checkout. Tap a card to shop, or open a listed promotion for details.
         </p>
 
         {loading && (
@@ -164,91 +248,147 @@ export default function EcomPromotionsPage() {
           </div>
         )}
 
-        {!loading && !error && !hasAnyCards && otherPromotions.length === 0 && (
+        {!loading && !error && !hasAnyPromotionContent && (
           <p className="text-sm text-slate-500 text-center py-10 rounded-2xl bg-slate-50 border border-slate-100 px-4">
             No promotions at the moment. Browse the shop or check back later.
           </p>
         )}
 
-        {!loading && !error && !hasAnyCards && otherPromotions.length > 0 && (
+        {!loading && !error && !hasAnyOfferCards && hasAnyPromotionContent && (
           <p className="text-sm text-slate-500 mb-6 leading-relaxed max-w-2xl">
-            No offer cards right now. Active promotions are listed below.
+            No offer cards right now. Active promotions are listed in the sections below.
           </p>
         )}
 
-        {!loading && !error && categoryCards.length > 0 && (
-          <section className="mb-10 sm:mb-12" aria-labelledby="category-promotions-heading">
-            <h2
-              id="category-promotions-heading"
-              className={`text-base sm:text-lg font-semibold ${TEXT_PRIMARY} mb-4 tracking-tight`}
-            >
-              Category promotions
-            </h2>
-            <ul className={CARD_GRID_CLASS}>
-              {categoryCards.map((c) => (
-                <PromotionOfferCard
-                  key={c.key}
-                  href={shopHrefForCategory(c.categoryId)}
-                  imageUrl={c.imageUrl}
-                  title={c.categoryName}
-                  discountLabel={c.discountLabel}
-                  endDate={c.endDate}
-                  caption={c.description || c.promotionName}
-                  ariaLabel={`Shop ${c.categoryName}, ${c.discountLabel}`}
-                />
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {!loading && !error && productCards.length > 0 && (
-          <section
-            className={categoryCards.length > 0 ? "pt-8 sm:pt-10 border-t border-slate-100" : ""}
-            aria-labelledby="product-promotions-heading"
-          >
-            <h2
-              id="product-promotions-heading"
-              className={`text-base sm:text-lg font-semibold ${TEXT_PRIMARY} mb-4 tracking-tight`}
-            >
-              Product promotions
-            </h2>
-            <ul className={CARD_GRID_CLASS}>
-              {productCards.map((c) => {
-                const href = getProductPromotionShopHref(c);
-                const aria =
-                  c.href != null
-                    ? `${c.promotionName || c.itemName || "Promotion"}: ${c.discountLabel}`
-                    : `Open ${c.itemName} in shop — ${c.discountLabel}`;
-                return (
+        {!loading && !error && hasCategorySection && (
+          <section className="mb-10 sm:mb-12" aria-labelledby="category-based-promotions-heading">
+            <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+              <div>
+                <h2
+                  id="category-based-promotions-heading"
+                  className={`text-xl sm:text-2xl font-bold ${TEXT_PRIMARY} tracking-tight`}
+                >
+                  Category Based Promotions
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
+                  Discounts that apply to entire categories in the shop.
+                </p>
+              </div>
+              <span
+                className="shrink-0 self-start rounded-full border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600"
+                aria-hidden
+              >
+                Category based
+              </span>
+            </div>
+            {categoryCards.length > 0 ? (
+              <ul className={CARD_GRID_CLASS}>
+                {categoryCards.map((c) => (
                   <PromotionOfferCard
                     key={c.key}
-                    href={href}
+                    href={shopHrefForCategory(c.categoryId)}
                     imageUrl={c.imageUrl}
-                    title={c.itemName}
+                    title={c.categoryName}
+                    discountKind={c.discountKind}
+                    discountValue={c.discountValue}
                     discountLabel={c.discountLabel}
                     endDate={c.endDate}
                     caption={c.description || c.promotionName}
-                    ariaLabel={aria}
+                    ariaLabel={`Shop ${c.categoryName}, ${c.discountLabel}`}
                   />
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            ) : null}
+            {otherCategoryBased.length > 0 ? (
+              <ul
+                className={`space-y-4 max-w-3xl ${categoryCards.length > 0 ? "mt-6" : ""}`}
+                aria-label="Additional category based promotions"
+              >
+                {otherCategoryBased.map((p) => (
+                  <SimplePromotionRow key={p.id} p={p} />
+                ))}
+              </ul>
+            ) : null}
           </section>
         )}
 
-        {!loading && !error && otherPromotions.length > 0 && (
+        {!loading && !error && hasProductSection && (
           <section
-            className={hasAnyCards ? "mt-12 pt-8 border-t border-slate-100" : ""}
+            className={hasCategorySection ? "pt-8 sm:pt-10 border-t border-slate-100" : ""}
+            aria-labelledby="product-based-promotions-heading"
+          >
+            <div className="mb-4 flex flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+              <div>
+                <h2
+                  id="product-based-promotions-heading"
+                  className={`text-xl sm:text-2xl font-bold ${TEXT_PRIMARY} tracking-tight`}
+                >
+                  Product Based Promotions
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
+                  Offers on specific products or SKUs.
+                </p>
+              </div>
+              <span
+                className="shrink-0 self-start rounded-full border border-slate-200/90 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-600"
+                aria-hidden
+              >
+                Product based
+              </span>
+            </div>
+            {productCards.length > 0 ? (
+              <ul className={CARD_GRID_CLASS}>
+                {productCards.map((c) => {
+                  const href = getProductPromotionShopHref(c);
+                  const aria =
+                    c.href != null
+                      ? `${c.promotionName || c.itemName || "Promotion"}: ${c.discountLabel}`
+                      : `Open ${c.itemName} in shop — ${c.discountLabel}`;
+                  return (
+                    <PromotionOfferCard
+                      key={c.key}
+                      href={href}
+                      imageUrl={c.imageUrl}
+                      title={c.itemName}
+                      discountKind={c.discountKind}
+                      discountValue={c.discountValue}
+                      discountLabel={c.discountLabel}
+                      endDate={c.endDate}
+                      caption={c.description || c.promotionName}
+                      ariaLabel={aria}
+                    />
+                  );
+                })}
+              </ul>
+            ) : null}
+            {otherProductBased.length > 0 ? (
+              <ul
+                className={`space-y-4 max-w-3xl ${productCards.length > 0 ? "mt-6" : ""}`}
+                aria-label="Additional product based promotions"
+              >
+                {otherProductBased.map((p) => (
+                  <SimplePromotionRow key={p.id} p={p} />
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        )}
+
+        {!loading && !error && otherPromotionsRest.length > 0 && (
+          <section
+            className={
+              hasCategorySection || hasProductSection ? "mt-12 pt-8 border-t border-slate-100" : ""
+            }
             aria-labelledby="other-promos-heading"
           >
             <h2
               id="other-promos-heading"
               className={`text-base sm:text-lg font-semibold ${TEXT_PRIMARY} mb-4 tracking-tight`}
             >
-              {hasAnyCards ? "Other promotions" : "Current promotions"}
+              {hasCategorySection || hasProductSection ? "Other promotions" : "Current promotions"}
             </h2>
             <ul className="space-y-4 max-w-3xl">
-              {otherPromotions.map((p) => {
+              {otherPromotionsRest.map((p) => {
                 const isOrderTotalOffer =
                   isTotalAmountDiscountPromotion(p) && !isTotalAmountCouponPromotion(p);
                 const title = p.name?.trim() || "Promotion";
@@ -310,7 +450,7 @@ export default function EcomPromotionsPage() {
                               </p>
                             ) : (
                               <p className="text-sm leading-relaxed text-slate-600">
-                                Save on your merchandise total when your cart reaches the spend tiers. Open this offer for
+                                Save on your order total when your cart reaches the spend tiers. Open this offer for
                                 full tier details and dates.
                               </p>
                             )}
@@ -321,7 +461,7 @@ export default function EcomPromotionsPage() {
                             ) : null}
                             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                               <span className="text-xs font-medium text-slate-400">
-                                Applied at checkout on merchandise subtotal
+                                Applied at checkout on order subtotal
                               </span>
                               <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0D1B3E] transition-[gap] group-hover:gap-2.5">
                                 View details

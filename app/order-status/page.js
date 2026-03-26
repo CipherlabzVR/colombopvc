@@ -308,7 +308,7 @@ function OrderCard({ order, showDetails = true, viewer = null, onOrderUpdated })
           {merchandiseGross != null && orderDiscount > 0 && (
             <div className="mt-1 space-y-0.5 text-xs text-slate-600">
               <p className="flex justify-between gap-2">
-                <span>Merchandise</span>
+                <span>Order</span>
                 <span>{formatRs(merchandiseGross)}</span>
               </p>
               <p className="flex justify-between gap-2 text-emerald-700 font-medium">

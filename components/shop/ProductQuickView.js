@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { formatRs } from "@/components/shop/shopData";
+import {
+  formatRs,
+  effectiveUnitPriceForCartLine,
+  wholesaleAppliesToCartLine,
+} from "@/components/shop/shopData";
 import { useCart } from "@/context/CartContext";
 import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
 import { effectiveUnitPriceAfterPromotion } from "@/lib/categoryPromotionPricing";
@@ -80,15 +84,26 @@ export default function ProductQuickView({ product, onClose }) {
 
   /** Effective price: sub-image price when selected and available, else product price */
   const effectivePrice = currentImage?.price != null ? currentImage.price : product.price;
+  const baseUnit = effectiveUnitPriceForCartLine({
+    ...product,
+    price: effectivePrice,
+    qty,
+  });
+  const wholesaleActive = wholesaleAppliesToCartLine({
+    ...product,
+    price: effectivePrice,
+    qty,
+  });
   const promoUnit = effectiveUnitPriceAfterPromotion(
-    effectivePrice,
-    1,
+    baseUnit,
+    qty,
     product.categoryId,
     rules,
     product.id,
     productRules,
   );
   const showPromoPrice = promoUnit < effectivePrice - 0.001;
+  const showSpecialPrice = showPromoPrice || wholesaleActive;
   /** Effective description: sub-image description when selected (not main slot), else product description */
   const effectiveDescription =
     currentImage?.id !== "main" && currentImage?.description
@@ -221,7 +236,7 @@ export default function ProductQuickView({ product, onClose }) {
               </p>
 
               <div className="mt-4 border-t border-slate-100 pt-4">
-                {showPromoPrice ? (
+                {showSpecialPrice ? (
                   <div className="flex flex-wrap items-baseline gap-2">
                     <p className="text-lg font-semibold text-slate-400 line-through">
                       {formatRs(effectivePrice)}
@@ -235,6 +250,14 @@ export default function ProductQuickView({ product, onClose }) {
                     {formatRs(effectivePrice)}
                   </p>
                 )}
+                {product.wholesalePrice != null &&
+                  product.wholesaleMinimumQuantity != null &&
+                  !wholesaleActive && (
+                    <p className="text-sm text-slate-600 mt-2">
+                      Wholesale {formatRs(product.wholesalePrice)} from{" "}
+                      {Number(product.wholesaleMinimumQuantity).toLocaleString("en-LK")}+ units
+                    </p>
+                  )}
                 {currentImage?.isOutOfStock && (
                   <p className="text-sm font-semibold text-rose-600 mt-2">
                     {allGalleryOptionsOutOfStock
