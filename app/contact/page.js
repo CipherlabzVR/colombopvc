@@ -44,7 +44,8 @@ const contactItems = [
     ),
   },
   {
-    label: "Email", value: "sales.colombopvc@gmail.com", href: "mailto:sales.colombopvc@gmail.com",
+    // label: "Email", value: "sales.colombopvc@gmail.com", href: "mailto:sales.colombopvc@gmail.com",
+    label: "Email", value: "buddikakb4@gmail.com", href: "mailto:buddikakb4@gmail.com",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -136,19 +137,77 @@ function Rings() {
   );
 }
 
+function validateContactForm(data) {
+  const errs = {};
+  const trimmedName = data.name.trim();
+  if (!trimmedName) errs.name = "Name is required.";
+  else if (/\d/.test(trimmedName)) errs.name = "Numbers are not allowed in your full name.";
+  else if (/[^\p{L}\s]/u.test(trimmedName))
+    errs.name = "Special characters are not allowed in your full name.";
+
+  if (!data.email.trim()) errs.email = "Email is required.";
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()))
+    errs.email = "Enter a valid email address.";
+
+  if (!data.message.trim()) errs.message = "Message is required.";
+
+  return errs;
+}
+
 export default function ContactPage() {
   const [formData, setFormData] = useState({ name:"", email:"", phone:"", subject:"", message:"" });
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({ name:"", email:"", phone:"", subject:"", message:"" });
-    }, 3000);
+  const handleChange = (e) => {
+    const { name } = e.target;
+    setFormData({ ...formData, [name]: e.target.value });
+    if (fieldErrors[name]) setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+    if (submitError) setSubmitError("");
   };
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitError("");
+    const errs = validateContactForm(formData);
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+    setFieldErrors({});
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          subject: formData.subject.trim(),
+          message: formData.message.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSubmitError(data.error || "Something went wrong. Please try again.");
+        return;
+      }
+      setSubmitted(true);
+      setFormData({ name:"", email:"", phone:"", subject:"", message:"" });
+      setTimeout(() => setSubmitted(false), 4000);
+    } catch {
+      setSubmitError("Network error. Check your connection and try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const inputStyle = (field) => ({
+    ...(fieldErrors[field] ? { borderColor: "#f87171", boxShadow: "0 0 0 3px rgba(248,113,113,0.15)" } : {}),
+  });
 
   return (
     <main style={{ fontFamily:"'Outfit', sans-serif", background:"#ffffff", color:"#1e293b", minHeight:"100vh", overflowX:"hidden" }}>
@@ -397,21 +456,62 @@ export default function ContactPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
+                {submitError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginBottom:20,
+                      padding:"12px 14px",
+                      borderRadius:10,
+                      background:"#fef2f2",
+                      border:"1px solid #fecaca",
+                      color:"#b91c1c",
+                      fontSize:13,
+                      lineHeight:1.5,
+                    }}
+                  >
+                    {submitError}
+                  </div>
+                )}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
                   <div className="field-wrap">
                     <label className="field-label">Full name *</label>
-                    <input type="text" name="name" value={formData.name} onChange={handleChange} required className="cf-input" placeholder="Your name"/>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleChange}
+                      className="cf-input"
+                      style={inputStyle("name")}
+                      placeholder="Your name"
+                      autoComplete="name"
+                    />
+                    {fieldErrors.name && (
+                      <span style={{ fontSize:12, color:"#dc2626", marginTop:6 }}>{fieldErrors.name}</span>
+                    )}
                   </div>
                   <div className="field-wrap">
                     <label className="field-label">Email *</label>
-                    <input type="email" name="email" value={formData.email} onChange={handleChange} required className="cf-input" placeholder="your@email.com"/>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className="cf-input"
+                      style={inputStyle("email")}
+                      placeholder="your@email.com"
+                      autoComplete="email"
+                    />
+                    {fieldErrors.email && (
+                      <span style={{ fontSize:12, color:"#dc2626", marginTop:6 }}>{fieldErrors.email}</span>
+                    )}
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, marginBottom:20 }}>
                   <div className="field-wrap">
                     <label className="field-label">Phone</label>
-                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="cf-input" placeholder="Phone number"/>
+                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="cf-input" placeholder="Phone number" autoComplete="tel"/>
                   </div>
                   <div className="field-wrap">
                     <label className="field-label">Subject</label>
@@ -420,10 +520,23 @@ export default function ContactPage() {
                 </div>
                 <div className="field-wrap" style={{ marginBottom:28 }}>
                   <label className="field-label">Message *</label>
-                  <textarea name="message" value={formData.message} onChange={handleChange} required rows={5} className="cf-textarea" placeholder="Tell us everything..."/>
+                  <textarea
+                    name="message"
+                    value={formData.message}
+                    onChange={handleChange}
+                    rows={5}
+                    className="cf-textarea"
+                    style={inputStyle("message")}
+                    placeholder="Tell us everything..."
+                  />
+                  {fieldErrors.message && (
+                    <span style={{ fontSize:12, color:"#dc2626", marginTop:6 }}>{fieldErrors.message}</span>
+                  )}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:20, flexWrap:"wrap" }}>
-                  <button type="submit" className="send-btn">Send message →</button>
+                  <button type="submit" className="send-btn" disabled={submitting} style={{ opacity: submitting ? 0.7 : 1, cursor: submitting ? "wait" : "pointer" }}>
+                    {submitting ? "Sending…" : "Send message →"}
+                  </button>
                   <span style={{ fontSize:12, color:"#94a3b8", lineHeight:1.6 }}>
                     We reply within <strong style={{ color:"#f59e0b" }}>24 hours</strong>
                   </span>
@@ -433,15 +546,7 @@ export default function ContactPage() {
 
             <div className="anim-fade d6" style={{ marginTop:48, paddingTop:24, borderTop:"1px solid #e2e8f0", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
               <span style={{ fontSize:12, color:"#94a3b8" }}>Colombo PVC — No. 192/4, Srimath Bandaranayaka Mawatha, Colombo 12</span>
-              <div style={{ display:"flex", gap:20 }}>
-                {["Facebook","Instagram","LinkedIn"].map(s => (
-                  <a key={s} href="#" style={{ fontSize:12, color:"#94a3b8", textDecoration:"none", transition:"color 0.2s" }}
-                    onMouseEnter={e => e.target.style.color="#f59e0b"}
-                    onMouseLeave={e => e.target.style.color="#94a3b8"}>
-                    {s}
-                  </a>
-                ))}
-              </div>
+              
             </div>
           </div>
 

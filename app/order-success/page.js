@@ -410,7 +410,7 @@ function OrderSuccessContent() {
       order.customer.notes ? `\n*Notes:* ${order.customer.notes}` : "",
     ].filter(Boolean).join("\n");
 
-    return `https://wa.me/94987654321?text=${encodeURIComponent(lines)}`;
+    return `https://wa.me/94777264913?text=${encodeURIComponent(lines)}`; 
   }
 
   if (loading) {

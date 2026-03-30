@@ -32,7 +32,12 @@ export default function SignUpPage() {
 
   const validate = () => {
     const errs = {};
-    if (!form.name.trim()) errs.name = "Name is required";
+    const trimmedName = form.name.trim();
+    if (!trimmedName) errs.name = "Name is required";
+    else if (/\d/.test(trimmedName))
+      errs.name = "Numbers are not allowed in your full name.";
+    else if (/[^\p{L}\s]/u.test(trimmedName))
+      errs.name = "Special characters are not allowed in your full name.";
     if (!form.email.trim()) errs.email = "Email is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       errs.email = "Enter a valid email address";
