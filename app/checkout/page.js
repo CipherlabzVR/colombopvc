@@ -27,6 +27,7 @@ import {
   getPublicTotalAmountCouponAvailability,
   previewTotalAmountCoupon,
 } from "@/lib/promotionsApi";
+import WebXPayCardInfo from "@/components/checkout/WebXPayCardForm";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -43,7 +44,8 @@ function getStoredUser() {
 }
 
 /** Standard delivery charge (no automatic “free” threshold — free delivery should come from configured promotions only). */
-const DELIVERY_FEE = 500;
+const DELIVERY_FEE = 5;
+// const DELIVERY_FEE = 500;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -85,6 +87,8 @@ export default function CheckoutPage() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponError, setCouponError] = useState("");
   const [couponApplying, setCouponApplying] = useState(false);
+
+
 
   useEffect(() => {
     const stored = getStoredUser();
@@ -284,7 +288,9 @@ export default function CheckoutPage() {
     return base;
   });
 
-  const paymentOption = Number(form.paymentMethod) || PAYMENT_OPTIONS.CashOnDelivery;
+  const rawPayment = Number(form.paymentMethod);
+  const paymentOption =
+    rawPayment === PAYMENT_OPTIONS.Card ? PAYMENT_OPTIONS.Card : PAYMENT_OPTIONS.CashOnDelivery;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -369,8 +375,87 @@ export default function CheckoutPage() {
         }
       }
 
+      const checkoutSnapshot = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone.trim().replace(/\s/g, ""),
+        email: form.email.trim(),
+        address: form.address.trim(),
+        city: form.city.trim(),
+        district: form.district.trim(),
+        postalCode: (form.postalCode ?? "").trim(),
+        notes: (form.notes ?? "").trim(),
+      };
+
+      if (paymentOption === PAYMENT_OPTIONS.Card) {
+        const pendingOrder = {
+          orderRef: orderIdDisplay,
+          customerId,
+          checkoutAddressId,
+          checkoutSlugs: itemsForCheckout.map((i) => i.slug),
+          orderPayload: {
+            ...orderPayload,
+            OrderNo: orderIdDisplay,
+          },
+          checkoutSnapshot,
+        };
+
+        try {
+          const pendingKey = `webxpay_pending_${orderIdDisplay}`;
+          const serialized = JSON.stringify(pendingOrder);
+          sessionStorage.setItem(pendingKey, serialized);
+          localStorage.setItem(pendingKey, serialized);
+        } catch { /* ignore */ }
+
+        const payRes = await fetch("/api/webxpay/pay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: orderIdDisplay,
+            amount: String(grandTotal),
+            customerId: String(customerId),
+            customer: {
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim(),
+              email: form.email.trim(),
+              contactNumber: form.phone.trim().replace(/\s/g, ""),
+              addressLineOne: form.address.trim(),
+              city: form.city.trim(),
+              postalCode: (form.postalCode ?? "").trim(),
+            },
+          }),
+        });
+        const payData = await payRes.json();
+
+        if (payData.error) {
+          try {
+            const pendingKey = `webxpay_pending_${orderIdDisplay}`;
+            sessionStorage.removeItem(pendingKey);
+            localStorage.removeItem(pendingKey);
+          } catch { /* ignore */ }
+          setErrors({ form: payData.error });
+          setSubmitting(false);
+          return;
+        }
+
+        const hiddenForm = document.createElement("form");
+        hiddenForm.method = "POST";
+        hiddenForm.action = payData.gatewayUrl;
+        Object.entries(payData.formData).forEach(([key, value]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = value;
+          hiddenForm.appendChild(input);
+        });
+        document.body.appendChild(hiddenForm);
+        hiddenForm.submit();
+        return;
+      }
+
       const orderRes = await createOnlineOrder({
         ...orderPayload,
+        OrderNo: orderIdDisplay,
         CustomerId: customerId,
         CheckoutAddressId: checkoutAddressId,
       });
@@ -398,20 +483,10 @@ export default function CheckoutPage() {
       itemsForCheckout.forEach((i) => removeFromCart(i.slug));
       setCheckoutSelection(null);
       try {
-        const checkoutSnapshot = {
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          phone: form.phone.trim().replace(/\s/g, ""),
-          email: form.email.trim(),
-          address: form.address.trim(),
-          city: form.city.trim(),
-          district: form.district.trim(),
-          postalCode: (form.postalCode ?? "").trim(),
-          notes: (form.notes ?? "").trim(),
-        };
         const key = `order_${orderIdDisplay}`;
-        sessionStorage.setItem(key, JSON.stringify(checkoutSnapshot));
-        localStorage.setItem(key, JSON.stringify(checkoutSnapshot));
+        const snap = JSON.stringify(checkoutSnapshot);
+        sessionStorage.setItem(key, snap);
+        localStorage.setItem(key, snap);
       } catch { /* ignore */ }
       const query = new URLSearchParams({ id: orderIdDisplay });
       if (customerId != null) query.set("customerId", String(customerId));
@@ -545,7 +620,7 @@ export default function CheckoutPage() {
               {/* Contact */}
               <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">1</span>
+                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">1</span>
                   Contact Information
                 </h2>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -576,7 +651,7 @@ export default function CheckoutPage() {
               <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">2</span>
+                    <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">2</span>
                     Delivery Address
                   </h2>
                   {user && (
@@ -699,42 +774,11 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </div>
-
-              {/* Payment */}
-              <div className="bg-white border border-slate-200 rounded-lg p-5">
-                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">3</span>
-                  Payment Method
-                </h2>
-                <div className="space-y-3">
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.CashOnDelivery} checked={form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.CashOnDelivery]}</p>
-                      <p className="text-xs text-slate-500">Pay when you receive your order</p>
-                    </div>
-                  </label>
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.Card ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.Card} checked={form.paymentMethod === PAYMENT_OPTIONS.Card} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.Card]}</p>
-                      <p className="text-xs text-slate-500">Pay by credit or debit card</p>
-                    </div>
-                  </label>
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.BankTransfer ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.BankTransfer} checked={form.paymentMethod === PAYMENT_OPTIONS.BankTransfer} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.BankTransfer]}</p>
-                      <p className="text-xs text-slate-500">Transfer to our bank account (details will be provided)</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
             </div>
 
-            {/* Right: Order Summary */}
-            <div className="lg:w-96 shrink-0">
-              <div className="bg-white border border-slate-200 rounded-lg p-5 lg:sticky lg:top-6">
+            {/* Right: Order summary, then payment, then submit (sticky on large screens) */}
+            <div className="lg:w-96 shrink-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
+              <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <h2 className="text-lg font-bold text-slate-900 mb-4">Order Summary</h2>
 
                 <ul className="space-y-3 max-h-80 overflow-y-auto mb-4">
@@ -866,11 +910,36 @@ export default function CheckoutPage() {
                   <span className="font-bold text-slate-900">Total</span>
                   <span className="text-xl font-extrabold text-slate-900">{formatRs(grandTotal)}</span>
                 </div>
+              </div>
 
+              <div className="bg-white border border-slate-200 rounded-lg p-5">
+                <h2 className="text-lg font-bold text-slate-900 mb-4">Payment Method</h2>
+                <div className="space-y-3">
+                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.CashOnDelivery} checked={form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery} onChange={handleChange} className="mt-0.5 accent-emerald-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.CashOnDelivery]}</p>
+                      <p className="text-xs text-slate-500">Pay when you receive your order</p>
+                    </div>
+                  </label>
+                  <div>
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.Card ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
+                      <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.Card} checked={form.paymentMethod === PAYMENT_OPTIONS.Card} onChange={handleChange} className="mt-0.5 accent-emerald-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.Card]}</p>
+                        <p className="text-xs text-slate-500">Pay securely by credit or debit card</p>
+                      </div>
+                    </label>
+                    {form.paymentMethod === PAYMENT_OPTIONS.Card && <WebXPayCardInfo />}
+                  </div>
+                </div>
+              </div>
+
+              <div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 rounded-md transition-all text-sm"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 rounded-md transition-all text-sm"
                 >
                   {submitting ? (
                     <>
@@ -880,7 +949,7 @@ export default function CheckoutPage() {
                   ) : (
                     <>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                      Place Order &mdash; {formatRs(grandTotal)}
+                      {paymentOption === PAYMENT_OPTIONS.Card ? <>Pay &amp; Place Order &mdash; {formatRs(grandTotal)}</> : <>Place Order &mdash; {formatRs(grandTotal)}</>}
                     </>
                   )}
                 </button>
@@ -897,6 +966,7 @@ export default function CheckoutPage() {
         </form>
         )}
       </div>
+
     </main>
   );
 }

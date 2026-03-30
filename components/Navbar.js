@@ -437,7 +437,7 @@ export default function Navbar() {
             <circle cx="20" cy="21" r="1" />
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
           </svg>
-          <span className={`absolute top-1 right-1 md:top-[-2px] md:right-[-2px] min-w-[18px] h-[18px] flex items-center justify-center text-xs font-semibold rounded-full transition-colors ${totalItems > 0 ? "bg-rose-500 text-white" : "bg-[#F5C518] text-[#0D1B3E]"}`}>
+          <span suppressHydrationWarning className={`absolute top-1 right-1 md:top-[-2px] md:right-[-2px] min-w-[18px] h-[18px] flex items-center justify-center text-xs font-semibold rounded-full transition-colors ${totalItems > 0 ? "bg-rose-500 text-white" : "bg-[#F5C518] text-[#0D1B3E]"}`}>
             {totalItems}
           </span>
         </button>
