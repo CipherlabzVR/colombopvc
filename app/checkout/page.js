@@ -44,8 +44,7 @@ function getStoredUser() {
 }
 
 /** Standard delivery charge (no automatic “free” threshold — free delivery should come from configured promotions only). */
-const DELIVERY_FEE = 5;
-// const DELIVERY_FEE = 500;
+const DELIVERY_FEE = 500;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -733,11 +732,11 @@ export default function CheckoutPage() {
                     </ul>
                     {selectedAddressId && (
                       <div className="pt-2 space-y-4 border-t border-slate-200">
-                        <p className="text-sm text-slate-600">Selected address will be used for delivery. Add order notes below if needed.</p>
-                        <div>
+                        {/* <p className="text-sm text-slate-600">Selected address will be used for delivery. Add order notes below if needed.</p> */}
+                        {/* <div>
                           <label className="block text-sm font-medium text-slate-700 mb-1">Order Notes (optional)</label>
                           <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} className={inputCls("notes")} placeholder="Any special instructions for delivery..." />
-                        </div>
+                        </div> */}
                       </div>
                     )}
                   </div>
