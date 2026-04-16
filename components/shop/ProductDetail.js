@@ -3,13 +3,29 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
-import { formatRs, getPreferredInStockOffer, productToCartLine } from "@/components/shop/shopData";
+import {
+  formatRs,
+  getPreferredInStockOffer,
+  productToCartLine,
+  wholesaleAppliesToCartLine,
+  effectiveUnitPriceForCartLine,
+} from "@/components/shop/shopData";
 import { OutOfStockOverlay } from "@/components/shop/OutOfStockOverlay";
 
 export default function ProductDetail({ product }) {
   const [qty, setQty] = useState(1);
   const { addToCart } = useCart();
   const offer = getPreferredInStockOffer(product);
+  const wholesaleActive = wholesaleAppliesToCartLine({
+    ...product,
+    price: offer.price,
+    qty,
+  });
+  const unitForQty = effectiveUnitPriceForCartLine({
+    ...product,
+    price: offer.price,
+    qty,
+  });
 
   function handleAddToCart() {
     const line = productToCartLine(product);
@@ -69,9 +85,25 @@ export default function ProductDetail({ product }) {
               <span>{product.subcategory}</span>
             </p>
 
-            <p className="mt-5 text-3xl font-extrabold text-rose-600">
-              {formatRs(offer.price)}
-            </p>
+            <div className="mt-5 space-y-1">
+              {wholesaleActive ? (
+                <>
+                  <p className="text-sm text-slate-500 line-through">{formatRs(offer.price)}</p>
+                  <p className="text-3xl font-extrabold text-emerald-700">{formatRs(unitForQty)}</p>
+                  <p className="text-xs font-semibold text-emerald-800">Wholesale price for this quantity</p>
+                </>
+              ) : (
+                <p className="text-3xl font-extrabold text-rose-600">{formatRs(offer.price)}</p>
+              )}
+              {product.wholesalePrice != null &&
+                product.wholesaleMinimumQuantity != null &&
+                !wholesaleActive && (
+                  <p className="text-sm text-slate-600 pt-1">
+                    Wholesale: {formatRs(product.wholesalePrice)} when you buy{" "}
+                    {Number(product.wholesaleMinimumQuantity).toLocaleString("en-LK")} or more
+                  </p>
+                )}
+            </div>
 
             {product.description && (
               <div className="mt-4">

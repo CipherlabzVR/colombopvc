@@ -4,11 +4,14 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
 import { formatRs } from "@/components/shop/shopData";
+import { getCartLinePromoPricing, summarizeCartPromotions } from "@/lib/categoryPromotionPricing";
 
 export default function CartDrawer() {
   const router = useRouter();
-  const { items, totalItems, totalPrice, setQty, removeFromCart, setCheckoutSelection, drawerOpen, closeDrawer } = useCart();
+  const { items, totalItems, setQty, removeFromCart, setCheckoutSelection, drawerOpen, closeDrawer } = useCart();
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
   const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
 
   // When drawer opens or items change, default to all selected
@@ -36,17 +39,22 @@ export default function CartDrawer() {
   const selectAll = () => setSelectedSlugs(new Set(items.map((i) => i.slug)));
   const deselectAll = () => setSelectedSlugs(new Set());
 
-  const { selectedCount, selectedSubtotal } = useMemo(() => {
+  const { selectedCount, selectedSubtotal, selectedDiscount } = useMemo(() => {
     let count = 0;
-    let subtotal = 0;
+    const selectedItems = [];
     items.forEach((item) => {
       if (selectedSlugs.has(item.slug)) {
         count += item.qty;
-        subtotal += item.price * item.qty;
+        selectedItems.push(item);
       }
     });
-    return { selectedCount: count, selectedSubtotal: subtotal };
-  }, [items, selectedSlugs]);
+    const { discount, net } = summarizeCartPromotions(selectedItems, rules, productRules, totalAmountRules);
+    return {
+      selectedCount: count,
+      selectedSubtotal: net,
+      selectedDiscount: discount,
+    };
+  }, [items, selectedSlugs, rules, productRules, totalAmountRules]);
 
   useEffect(() => {
     if (drawerOpen) {
@@ -137,6 +145,7 @@ export default function CartDrawer() {
             <ul className="space-y-4">
               {items.map((item) => {
                 const isSelected = selectedSlugs.has(item.slug);
+                const pr = getCartLinePromoPricing(item, rules, productRules);
                 return (
                 <li key={item.slug} className={`flex gap-3 bg-slate-50 border rounded-lg p-3 ${isSelected ? "border-slate-200" : "border-slate-200 opacity-75"}`}>
                   <div className="flex items-start pt-0.5">
@@ -167,7 +176,36 @@ export default function CartDrawer() {
                     >
                       {item.name}
                     </Link>
-                    <p className="text-sm font-bold text-rose-600 mt-1">{formatRs(item.price)}</p>
+                    {pr.hasPromo ? (
+                      <div className="mt-1">
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                          <span className="text-xs font-semibold text-slate-400 line-through tabular-nums">
+                            {formatRs(pr.unitList)}
+                          </span>
+                          <span className="text-sm font-bold text-emerald-700 tabular-nums">
+                            {formatRs(pr.unitSale)}
+                          </span>
+                        </div>
+                        {pr.priceLabel && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
+                            {pr.priceLabel}
+                          </span>
+                        )}
+                        <p className="text-xs text-slate-600 mt-1 tabular-nums">
+                          Line:{" "}
+                          {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
+                            <>
+                              <span className="text-slate-400 line-through mr-1">{formatRs(pr.lineTotalStrikeGross)}</span>
+                              <span className="font-semibold text-slate-800">{formatRs(pr.lineNet)}</span>
+                            </>
+                          ) : (
+                            <span className="font-semibold text-slate-800">{formatRs(pr.lineNet)}</span>
+                          )}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-bold text-rose-600 mt-1 tabular-nums">{formatRs(item.price)}</p>
+                    )}
                     <div className="flex items-center gap-2 mt-2">
                       <div className="inline-flex items-center border border-slate-300 rounded-md overflow-hidden">
                         <button
@@ -215,6 +253,11 @@ export default function CartDrawer() {
               </span>
               <span className="text-lg font-bold text-slate-900">{formatRs(selectedSubtotal)}</span>
             </div>
+            {selectedDiscount > 0 && (
+              <p className="text-xs text-emerald-700 font-medium text-right">
+                Includes {formatRs(selectedDiscount)} promotion savings
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Link
                 href="/cart"

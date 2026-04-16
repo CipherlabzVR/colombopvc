@@ -2,10 +2,22 @@
 
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
 import { formatRs } from "@/components/shop/shopData";
+import {
+  getCartLinePromoPricing,
+  summarizeCartPromotions,
+} from "@/lib/categoryPromotionPricing";
 
 export default function CartPage() {
-  const { items, totalItems, totalPrice, setQty, removeFromCart, clearCart } = useCart();
+  const { items, totalItems, setQty, removeFromCart, clearCart } = useCart();
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
+  const {
+    gross: cartGross,
+    net: cartNet,
+    lineDiscount: cartLinePromo,
+    orderDiscount: cartOrderPromo,
+  } = summarizeCartPromotions(items, rules, productRules, totalAmountRules);
 
   return (
     <main className="min-h-screen bg-slate-50">
@@ -61,7 +73,9 @@ export default function CartPage() {
                 <span />
               </div>
 
-              {items.map((item) => (
+              {items.map((item) => {
+                const pr = getCartLinePromoPricing(item, rules, productRules);
+                return (
                 <div key={item.slug} className="bg-white border border-slate-200 rounded-lg p-4">
                   {/* Mobile layout */}
                   <div className="sm:hidden flex gap-3">
@@ -73,7 +87,25 @@ export default function CartPage() {
                         {item.name}
                       </Link>
                       <p className="text-xs text-slate-500 mt-0.5">{item.category} &bull; {item.subcategory}</p>
-                      <p className="text-sm font-bold text-rose-600 mt-1">{formatRs(item.price)}</p>
+                      {pr.hasPromo ? (
+                        <div className="mt-1">
+                          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0">
+                            <span className="text-xs font-semibold text-slate-400 line-through tabular-nums">
+                              {formatRs(pr.unitList)}
+                            </span>
+                            <span className="text-sm font-bold text-emerald-700 tabular-nums">
+                              {formatRs(pr.unitSale)}
+                            </span>
+                          </div>
+                          {pr.priceLabel && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600/90">
+                              {pr.priceLabel}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm font-bold text-rose-600 mt-1 tabular-nums">{formatRs(item.price)}</p>
+                      )}
                       <div className="flex items-center justify-between mt-2">
                         <div className="inline-flex items-center border border-slate-300 rounded-md overflow-hidden">
                           <button onClick={() => setQty(item.slug, item.qty - 1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors" aria-label="Decrease">
@@ -85,7 +117,18 @@ export default function CartPage() {
                           </button>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-bold text-slate-900">{formatRs(item.price * item.qty)}</span>
+                          <span className="text-sm font-bold text-slate-900">
+                            {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
+                              <span className="inline-flex flex-col items-end">
+                                <span className="text-xs text-slate-400 line-through font-medium tabular-nums">
+                                  {formatRs(pr.lineTotalStrikeGross)}
+                                </span>
+                                <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
+                              </span>
+                            ) : (
+                              <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
+                            )}
+                          </span>
                           <button onClick={() => removeFromCart(item.slug)} className="p-1 text-slate-400 hover:text-red-500 transition-colors" aria-label="Remove">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                           </button>
@@ -107,7 +150,23 @@ export default function CartPage() {
                         <p className="text-xs text-slate-500 mt-0.5">{item.category} &bull; {item.subcategory}</p>
                       </div>
                     </div>
-                    <span className="text-sm font-semibold text-rose-600 text-center">{formatRs(item.price)}</span>
+                    {pr.hasPromo ? (
+                      <div className="text-sm text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-xs text-slate-400 line-through tabular-nums">{formatRs(pr.unitList)}</span>
+                          <span className="font-bold text-emerald-700 tabular-nums">{formatRs(pr.unitSale)}</span>
+                          {pr.priceLabel && (
+                            <span className="text-[10px] font-semibold uppercase text-emerald-600">
+                              {pr.wholesaleActive && !pr.hasPromoDiscount ? "Wholesale" : "Promo"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold text-rose-600 text-center block tabular-nums">
+                        {formatRs(item.price)}
+                      </span>
+                    )}
                     <div className="flex justify-center">
                       <div className="inline-flex items-center border border-slate-300 rounded-md overflow-hidden">
                         <button onClick={() => setQty(item.slug, item.qty - 1)} className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors" aria-label="Decrease">
@@ -119,13 +178,25 @@ export default function CartPage() {
                         </button>
                       </div>
                     </div>
-                    <span className="text-sm font-bold text-slate-900 text-right">{formatRs(item.price * item.qty)}</span>
+                    <span className="text-sm font-bold text-slate-900 text-right">
+                      {pr.lineTotalStrikeGross > pr.lineNet + 0.005 ? (
+                        <span className="inline-flex flex-col items-end">
+                          <span className="text-xs text-slate-400 line-through font-medium tabular-nums">
+                            {formatRs(pr.lineTotalStrikeGross)}
+                          </span>
+                          <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
+                        </span>
+                      ) : (
+                        <span className="tabular-nums">{formatRs(pr.lineNet)}</span>
+                      )}
+                    </span>
                     <button onClick={() => removeFromCart(item.slug)} className="p-1 text-slate-400 hover:text-red-500 transition-colors justify-self-center" aria-label="Remove">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                     </button>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
             {/* Order Summary Sidebar */}
@@ -133,9 +204,27 @@ export default function CartPage() {
               <div className="bg-white border border-slate-200 rounded-lg p-5 lg:sticky lg:top-6">
                 <h2 className="text-lg font-bold text-slate-900 mb-4">Order Summary</h2>
                 <div className="space-y-2 text-sm">
+                  {(cartLinePromo > 0 || cartOrderPromo > 0) && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Order</span>
+                      <span className="font-medium text-slate-800">{formatRs(cartGross)}</span>
+                    </div>
+                  )}
+                  {cartLinePromo > 0 && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Item promotion savings</span>
+                      <span className="font-semibold">−{formatRs(cartLinePromo)}</span>
+                    </div>
+                  )}
+                  {cartOrderPromo > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Total amount based discount</span>
+                      <span className="font-semibold">−{formatRs(cartOrderPromo)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal ({totalItems} items)</span>
-                    <span className="font-medium text-slate-800">{formatRs(totalPrice)}</span>
+                    <span className="font-medium text-slate-800">{formatRs(cartNet)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600">
                     <span>Shipping</span>
@@ -144,7 +233,7 @@ export default function CartPage() {
                 </div>
                 <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-center">
                   <span className="font-bold text-slate-900">Total</span>
-                  <span className="text-xl font-extrabold text-slate-900">{formatRs(totalPrice)}</span>
+                  <span className="text-xl font-extrabold text-slate-900">{formatRs(cartNet)}</span>
                 </div>
                 <Link
                   href="/checkout"

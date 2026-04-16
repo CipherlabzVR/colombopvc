@@ -17,6 +17,17 @@ import {
 import { createGuestCustomerForCheckout } from "@/lib/customerApi";
 import CheckoutAuthModal from "@/components/CheckoutAuthModal";
 import AddDeliveryAddressModal from "@/components/AddDeliveryAddressModal";
+import { useCategoryPromotions } from "@/context/CategoryPromotionContext";
+import {
+  computeBestCombinedLinePromotion,
+  summarizeCartPromotions,
+} from "@/lib/categoryPromotionPricing";
+import { effectiveUnitPriceForCartLine } from "@/components/shop/shopData";
+import {
+  getPublicTotalAmountCouponAvailability,
+  previewTotalAmountCoupon,
+} from "@/lib/promotionsApi";
+import WebXPayCardInfo from "@/components/checkout/WebXPayCardForm";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
@@ -32,8 +43,9 @@ function getStoredUser() {
   }
 }
 
-const DELIVERY_FEE = 350;
-const FREE_DELIVERY_MIN = 5000;
+/** Standard delivery charge (no automatic “free” threshold — free delivery should come from configured promotions only). */
+const DELIVERY_FEE = 5;
+// const DELIVERY_FEE = 500;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -44,6 +56,7 @@ function generateOrderId() {
 export default function CheckoutPage() {
   const router = useRouter();
   const { itemsForCheckout, removeFromCart, setCheckoutSelection } = useCart();
+  const { rules, productRules, totalAmountRules } = useCategoryPromotions();
 
   const [authChecked, setAuthChecked] = useState(false);
   const [user, setUser] = useState(null);
@@ -69,10 +82,22 @@ export default function CheckoutPage() {
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState(null);
 
+  const [couponSectionEnabled, setCouponSectionEnabled] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponApplying, setCouponApplying] = useState(false);
+
+
+
   useEffect(() => {
     const stored = getStoredUser();
     setUser(stored);
     setAuthChecked(true);
+  }, []);
+
+  useEffect(() => {
+    getPublicTotalAmountCouponAvailability().then(setCouponSectionEnabled);
   }, []);
 
   // Pre-fill contact info when user is set (e.g. after sign-in or on load)
@@ -141,9 +166,45 @@ export default function CheckoutPage() {
   }, [selectedAddressId, savedAddresses]);
 
   const totalItems = itemsForCheckout.reduce((s, i) => s + i.qty, 0);
-  const totalPrice = itemsForCheckout.reduce((s, i) => s + i.price * i.qty, 0);
-  const deliveryFee = totalPrice >= FREE_DELIVERY_MIN ? 0 : DELIVERY_FEE;
-  const grandTotal = totalPrice + deliveryFee;
+  const grossMerchandise = itemsForCheckout.reduce(
+    (s, i) => s + effectiveUnitPriceForCartLine(i) * i.qty,
+    0,
+  );
+  const {
+    discount: promotionDiscount,
+    net: merchandiseNet,
+    lineDiscount: linePromotionDiscount,
+    orderDiscount: orderTotalPromotionDiscount,
+  } = summarizeCartPromotions(itemsForCheckout, rules, productRules, totalAmountRules);
+
+  const couponDiscount = appliedCoupon?.discount ?? 0;
+  const finalMerchandiseNet = Math.max(0, Math.round((merchandiseNet - couponDiscount) * 100) / 100);
+  const deliveryFee = DELIVERY_FEE;
+  const grandTotal = Math.round((finalMerchandiseNet + deliveryFee) * 100) / 100;
+  const allPromotionDiscount = Math.round((linePromotionDiscount + orderTotalPromotionDiscount + couponDiscount) * 100) / 100;
+
+  useEffect(() => {
+    const code = appliedCoupon?.code;
+    if (!code) return undefined;
+    let cancelled = false;
+    (async () => {
+      const r = await previewTotalAmountCoupon({
+        couponCode: code,
+        merchandiseNetAfterLineAndTier: merchandiseNet,
+      });
+      if (cancelled) return;
+      if (r.valid && r.couponDiscount > 0) {
+        setAppliedCoupon({ code, discount: r.couponDiscount });
+        setCouponError("");
+      } else {
+        setAppliedCoupon(null);
+        setCouponError(r.message || "Coupon no longer applies to this cart.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [merchandiseNet, appliedCoupon?.code]);
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -152,6 +213,34 @@ export default function CheckoutPage() {
       [name]: name === "paymentMethod" ? Number(value) : value,
     }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  async function handleApplyCoupon() {
+    setCouponError("");
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError("Enter a coupon code.");
+      return;
+    }
+    setCouponApplying(true);
+    try {
+      const r = await previewTotalAmountCoupon({
+        couponCode: code,
+        merchandiseNetAfterLineAndTier: merchandiseNet,
+      });
+      if (!r.valid || !(r.couponDiscount > 0)) {
+        setAppliedCoupon(null);
+        setCouponError(r.message || "Invalid or expired coupon.");
+        return;
+      }
+      setAppliedCoupon({ code, discount: r.couponDiscount });
+      setCouponError("");
+    } catch (err) {
+      setAppliedCoupon(null);
+      setCouponError(err?.message ?? "Could not apply coupon.");
+    } finally {
+      setCouponApplying(false);
+    }
   }
 
   function validate() {
@@ -169,15 +258,39 @@ export default function CheckoutPage() {
     return errs;
   }
 
-  const lines = itemsForCheckout.map((i) => ({
-    ProductId: i.id ?? 0,
-    ProductName: i.name ?? "",
-    Price: Number(i.price),
-    Quantity: Number(i.qty),
-    LineTotal: Number(i.price) * Number(i.qty),
-  }));
+  const lines = itemsForCheckout.map((i) => {
+    const unitEffective = effectiveUnitPriceForCartLine(i);
+    const lineGross = unitEffective * Number(i.qty);
+    const promo = computeBestCombinedLinePromotion(
+      lineGross,
+      i.qty,
+      i.categoryId,
+      i.id,
+      rules,
+      productRules,
+    );
+    const base = {
+      ProductId: i.id ?? 0,
+      ProductName: i.name ?? "",
+      Price: unitEffective,
+      Quantity: Number(i.qty),
+      LineTotal: lineGross,
+    };
+    if (promo.promotionId != null && promo.totalDiscount > 0) {
+      return {
+        ...base,
+        PromotionId: promo.promotionId,
+        DiscountAmount: promo.discountAmountPerUnit,
+        TotalDiscount: promo.totalDiscount,
+        SubTotal: promo.subTotal,
+      };
+    }
+    return base;
+  });
 
-  const paymentOption = Number(form.paymentMethod) || PAYMENT_OPTIONS.CashOnDelivery;
+  const rawPayment = Number(form.paymentMethod);
+  const paymentOption =
+    rawPayment === PAYMENT_OPTIONS.Card ? PAYMENT_OPTIONS.Card : PAYMENT_OPTIONS.CashOnDelivery;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -195,13 +308,14 @@ export default function CheckoutPage() {
     setErrors({});
 
     const orderPayload = {
-      SubTotal: totalPrice,
+      SubTotal: finalMerchandiseNet,
       DeliveryCharge: deliveryFee,
       NetTotal: grandTotal,
       DiscountRate: null,
-      DiscountAmount: null,
+      DiscountAmount: allPromotionDiscount > 0 ? allPromotionDiscount : null,
       OrderStatus: 1,
       PaymentOption: paymentOption,
+      CouponCode: appliedCoupon?.code ?? null,
       Lines: lines,
     };
 
@@ -261,8 +375,87 @@ export default function CheckoutPage() {
         }
       }
 
+      const checkoutSnapshot = {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phone: form.phone.trim().replace(/\s/g, ""),
+        email: form.email.trim(),
+        address: form.address.trim(),
+        city: form.city.trim(),
+        district: form.district.trim(),
+        postalCode: (form.postalCode ?? "").trim(),
+        notes: (form.notes ?? "").trim(),
+      };
+
+      if (paymentOption === PAYMENT_OPTIONS.Card) {
+        const pendingOrder = {
+          orderRef: orderIdDisplay,
+          customerId,
+          checkoutAddressId,
+          checkoutSlugs: itemsForCheckout.map((i) => i.slug),
+          orderPayload: {
+            ...orderPayload,
+            OrderNo: orderIdDisplay,
+          },
+          checkoutSnapshot,
+        };
+
+        try {
+          const pendingKey = `webxpay_pending_${orderIdDisplay}`;
+          const serialized = JSON.stringify(pendingOrder);
+          sessionStorage.setItem(pendingKey, serialized);
+          localStorage.setItem(pendingKey, serialized);
+        } catch { /* ignore */ }
+
+        const payRes = await fetch("/api/webxpay/pay", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId: orderIdDisplay,
+            amount: String(grandTotal),
+            customerId: String(customerId),
+            customer: {
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim(),
+              email: form.email.trim(),
+              contactNumber: form.phone.trim().replace(/\s/g, ""),
+              addressLineOne: form.address.trim(),
+              city: form.city.trim(),
+              postalCode: (form.postalCode ?? "").trim(),
+            },
+          }),
+        });
+        const payData = await payRes.json();
+
+        if (payData.error) {
+          try {
+            const pendingKey = `webxpay_pending_${orderIdDisplay}`;
+            sessionStorage.removeItem(pendingKey);
+            localStorage.removeItem(pendingKey);
+          } catch { /* ignore */ }
+          setErrors({ form: payData.error });
+          setSubmitting(false);
+          return;
+        }
+
+        const hiddenForm = document.createElement("form");
+        hiddenForm.method = "POST";
+        hiddenForm.action = payData.gatewayUrl;
+        Object.entries(payData.formData).forEach(([key, value]) => {
+          const input = document.createElement("input");
+          input.type = "hidden";
+          input.name = key;
+          input.value = value;
+          hiddenForm.appendChild(input);
+        });
+        document.body.appendChild(hiddenForm);
+        hiddenForm.submit();
+        return;
+      }
+
       const orderRes = await createOnlineOrder({
         ...orderPayload,
+        OrderNo: orderIdDisplay,
         CustomerId: customerId,
         CheckoutAddressId: checkoutAddressId,
       });
@@ -290,20 +483,10 @@ export default function CheckoutPage() {
       itemsForCheckout.forEach((i) => removeFromCart(i.slug));
       setCheckoutSelection(null);
       try {
-        const checkoutSnapshot = {
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          phone: form.phone.trim().replace(/\s/g, ""),
-          email: form.email.trim(),
-          address: form.address.trim(),
-          city: form.city.trim(),
-          district: form.district.trim(),
-          postalCode: (form.postalCode ?? "").trim(),
-          notes: (form.notes ?? "").trim(),
-        };
         const key = `order_${orderIdDisplay}`;
-        sessionStorage.setItem(key, JSON.stringify(checkoutSnapshot));
-        localStorage.setItem(key, JSON.stringify(checkoutSnapshot));
+        const snap = JSON.stringify(checkoutSnapshot);
+        sessionStorage.setItem(key, snap);
+        localStorage.setItem(key, snap);
       } catch { /* ignore */ }
       const query = new URLSearchParams({ id: orderIdDisplay });
       if (customerId != null) query.set("customerId", String(customerId));
@@ -437,7 +620,7 @@ export default function CheckoutPage() {
               {/* Contact */}
               <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">1</span>
+                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">1</span>
                   Contact Information
                 </h2>
                 <div className="grid sm:grid-cols-2 gap-4">
@@ -468,7 +651,7 @@ export default function CheckoutPage() {
               <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">2</span>
+                    <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">2</span>
                     Delivery Address
                   </h2>
                   {user && (
@@ -591,42 +774,11 @@ export default function CheckoutPage() {
                   </div>
                 )}
               </div>
-
-              {/* Payment */}
-              <div className="bg-white border border-slate-200 rounded-lg p-5">
-                <h2 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">3</span>
-                  Payment Method
-                </h2>
-                <div className="space-y-3">
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.CashOnDelivery} checked={form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.CashOnDelivery]}</p>
-                      <p className="text-xs text-slate-500">Pay when you receive your order</p>
-                    </div>
-                  </label>
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.Card ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.Card} checked={form.paymentMethod === PAYMENT_OPTIONS.Card} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.Card]}</p>
-                      <p className="text-xs text-slate-500">Pay by credit or debit card</p>
-                    </div>
-                  </label>
-                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.BankTransfer ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
-                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.BankTransfer} checked={form.paymentMethod === PAYMENT_OPTIONS.BankTransfer} onChange={handleChange} className="mt-0.5 accent-emerald-600" />
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.BankTransfer]}</p>
-                      <p className="text-xs text-slate-500">Transfer to our bank account (details will be provided)</p>
-                    </div>
-                  </label>
-                </div>
-              </div>
             </div>
 
-            {/* Right: Order Summary */}
-            <div className="lg:w-96 shrink-0">
-              <div className="bg-white border border-slate-200 rounded-lg p-5 lg:sticky lg:top-6">
+            {/* Right: Order summary, then payment, then submit (sticky on large screens) */}
+            <div className="lg:w-96 shrink-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
+              <div className="bg-white border border-slate-200 rounded-lg p-5">
                 <h2 className="text-lg font-bold text-slate-900 mb-4">Order Summary</h2>
 
                 <ul className="space-y-3 max-h-80 overflow-y-auto mb-4">
@@ -639,40 +791,155 @@ export default function CheckoutPage() {
                         <p className="text-sm font-medium text-slate-800 line-clamp-1">{item.name}</p>
                         <p className="text-xs text-slate-500">Qty: {item.qty}</p>
                       </div>
-                      <span className="text-sm font-semibold text-slate-800 shrink-0">{formatRs(item.price * item.qty)}</span>
+                      <span className="text-sm font-semibold text-slate-800 shrink-0 text-right">
+                        {(() => {
+                          const lg = item.price * item.qty;
+                          const p = computeBestCombinedLinePromotion(
+                            lg,
+                            item.qty,
+                            item.categoryId,
+                            item.id,
+                            rules,
+                            productRules,
+                          );
+                          if (p.totalDiscount > 0) {
+                            return (
+                              <span className="inline-flex flex-col items-end">
+                                <span className="text-xs font-medium text-slate-400 line-through">
+                                  {formatRs(lg)}
+                                </span>
+                                <span>{formatRs(p.subTotal)}</span>
+                              </span>
+                            );
+                          }
+                          return formatRs(lg);
+                        })()}
+                      </span>
                     </li>
                   ))}
                 </ul>
 
+                {couponSectionEnabled && (
+                  <div className="border-t border-slate-200 pt-4 mb-4 space-y-2">
+                    <p className="text-xs font-medium text-slate-600">Have a coupon?</p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => {
+                          setCouponInput(e.target.value);
+                          setCouponError("");
+                        }}
+                        placeholder="Coupon code"
+                        className="flex-1 min-w-0 px-3 py-2 text-sm border border-slate-300 rounded-md text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-200 outline-none"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponApplying}
+                        className="shrink-0 px-3 py-2 text-sm font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-md disabled:opacity-50"
+                      >
+                        {couponApplying ? "…" : "Apply"}
+                      </button>
+                    </div>
+                    {appliedCoupon?.code && (
+                      <div className="flex items-center justify-between text-xs text-emerald-700">
+                        <span>
+                          Applied: <span className="font-semibold">{appliedCoupon.code}</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAppliedCoupon(null);
+                            setCouponInput("");
+                            setCouponError("");
+                          }}
+                          className="text-slate-500 hover:text-red-600 underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                    {couponError && <p className="text-xs text-red-600">{couponError}</p>}
+                  </div>
+                )}
+
                 <div className="border-t border-slate-200 pt-4 space-y-2 text-sm">
+                  {(linePromotionDiscount > 0 || orderTotalPromotionDiscount > 0 || couponDiscount > 0) && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Order</span>
+                      <span className="font-medium text-slate-800">{formatRs(grossMerchandise)}</span>
+                    </div>
+                  )}
+                  {linePromotionDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-700">
+                      <span>Item promotion savings</span>
+                      <span className="font-semibold">−{formatRs(linePromotionDiscount)}</span>
+                    </div>
+                  )}
+                  {orderTotalPromotionDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Total amount based discount</span>
+                      <span className="font-semibold">−{formatRs(orderTotalPromotionDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Subtotal ({totalItems} items)</span>
-                    <span className="font-medium text-slate-800">{formatRs(totalPrice)}</span>
+                    <span className="font-medium text-slate-800">{formatRs(merchandiseNet)}</span>
                   </div>
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between text-emerald-800">
+                      <span>Coupon discount</span>
+                      <span className="font-semibold">−{formatRs(couponDiscount)}</span>
+                    </div>
+                  )}
+                  {couponDiscount > 0 && (
+                    <div className="flex justify-between text-slate-800 font-semibold border-t border-dashed border-slate-200 pt-2">
+                      <span>Order total</span>
+                      <span>{formatRs(finalMerchandiseNet)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-slate-600">
                     <span>Delivery</span>
-                    {deliveryFee === 0 ? (
-                      <span className="font-medium text-emerald-600">FREE</span>
-                    ) : (
-                      <span className="font-medium text-slate-800">{formatRs(deliveryFee)}</span>
-                    )}
+                    <span className="font-medium text-slate-800">{formatRs(deliveryFee)}</span>
                   </div>
-                  {deliveryFee > 0 && (
-                    <p className="text-xs text-emerald-600">
-                      Free delivery on orders above {formatRs(FREE_DELIVERY_MIN)}
-                    </p>
-                  )}
                 </div>
 
                 <div className="border-t border-slate-200 mt-4 pt-4 flex justify-between items-center">
                   <span className="font-bold text-slate-900">Total</span>
                   <span className="text-xl font-extrabold text-slate-900">{formatRs(grandTotal)}</span>
                 </div>
+              </div>
 
+              <div className="bg-white border border-slate-200 rounded-lg p-5">
+                <h2 className="text-lg font-bold text-slate-900 mb-4">Payment Method</h2>
+                <div className="space-y-3">
+                  <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
+                    <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.CashOnDelivery} checked={form.paymentMethod === PAYMENT_OPTIONS.CashOnDelivery} onChange={handleChange} className="mt-0.5 accent-emerald-600 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.CashOnDelivery]}</p>
+                      <p className="text-xs text-slate-500">Pay when you receive your order</p>
+                    </div>
+                  </label>
+                  <div>
+                    <label className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${form.paymentMethod === PAYMENT_OPTIONS.Card ? "border-emerald-500 bg-emerald-50" : "border-slate-200 hover:border-slate-300"}`}>
+                      <input type="radio" name="paymentMethod" value={PAYMENT_OPTIONS.Card} checked={form.paymentMethod === PAYMENT_OPTIONS.Card} onChange={handleChange} className="mt-0.5 accent-emerald-600 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800">{PAYMENT_OPTION_LABELS[PAYMENT_OPTIONS.Card]}</p>
+                        <p className="text-xs text-slate-500">Pay securely by credit or debit card</p>
+                      </div>
+                    </label>
+                    {form.paymentMethod === PAYMENT_OPTIONS.Card && <WebXPayCardInfo />}
+                  </div>
+                </div>
+              </div>
+
+              <div>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="mt-5 w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 rounded-md transition-all text-sm"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold px-5 py-3 rounded-md transition-all text-sm"
                 >
                   {submitting ? (
                     <>
@@ -682,7 +949,7 @@ export default function CheckoutPage() {
                   ) : (
                     <>
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                      Place Order &mdash; {formatRs(grandTotal)}
+                      {paymentOption === PAYMENT_OPTIONS.Card ? <>Pay &amp; Place Order &mdash; {formatRs(grandTotal)}</> : <>Place Order &mdash; {formatRs(grandTotal)}</>}
                     </>
                   )}
                 </button>
@@ -699,6 +966,7 @@ export default function CheckoutPage() {
         </form>
         )}
       </div>
+
     </main>
   );
 }

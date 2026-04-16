@@ -60,29 +60,43 @@ function SignInContent() {
         password: form.password,
       });
 
-      const result = data?.result ?? data;
-      const isOk = data?.statusCode === 200 || (data?.statusCode == null && result != null);
+      const statusRaw = data?.statusCode ?? data?.StatusCode;
+      const apiMessage = data?.message ?? data?.Message ?? "";
+      const result = data?.result ?? data?.Result;
+
+      const statusIsFailed =
+        statusRaw === -99 ||
+        statusRaw === "-99" ||
+        (typeof statusRaw === "string" && statusRaw.toUpperCase() === "FAILED");
+
+      const isOk =
+        statusRaw === 200 &&
+        result != null &&
+        typeof result === "object" &&
+        !statusIsFailed;
 
       if (!isOk) {
         setErrors({
-          email: data?.message ?? "Invalid email or password. Please try again.",
+          email: apiMessage || "Invalid email or password. Please try again.",
         });
         setSubmitting(false);
         return;
       }
 
-      const firstName = (result.firstName ?? "").trim();
-      const lastName = (result.lastName ?? "").trim();
-      const customerId = result.id ?? result.customerId ?? result.customerID;
+      const firstName = (result.firstName ?? result.FirstName ?? "").trim();
+      const lastName = (result.lastName ?? result.LastName ?? "").trim();
+      const customerId =
+        result.id ?? result.Id ?? result.customerId ?? result.CustomerId ?? result.customerID;
+      const emailVal = (result.email ?? result.Email ?? form.email.trim()).trim();
       const user = {
-        email: result.email ?? form.email.trim(),
-        name: result.firstName
+        email: emailVal,
+        name: result.firstName ?? result.FirstName
           ? [firstName, lastName].filter(Boolean).join(" ")
-          : result.name ?? result.email ?? "",
-        token: result.token ?? null,
+          : result.name ?? result.Name ?? emailVal ?? "",
+        token: result.token ?? result.Token ?? null,
         firstName: firstName || undefined,
         lastName: lastName || undefined,
-        mobileNo: (result.mobileNo ?? result.phone ?? "").trim() || undefined,
+        mobileNo: (result.mobileNo ?? result.MobileNo ?? result.phone ?? "").trim() || undefined,
         customerId: customerId != null ? Number(customerId) : undefined,
       };
       localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));

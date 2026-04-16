@@ -190,9 +190,9 @@ export default function Navbar() {
         <Link href="/shop" className={navLinkClass(pathname, "/shop")}>
           Shop
         </Link>
-        {/* <Link href="/promotion" className={navLinkClass(pathname, "/promotion")}>
+        <Link href="/ecom/promotions" className={navLinkClass(pathname, "/ecom/promotions")}>
           Promotion
-        </Link> */}
+        </Link>
         <Link href="/order-status" className={navLinkClass(pathname, "/order-status")}>
           Order Status
         </Link>
@@ -437,7 +437,7 @@ export default function Navbar() {
             <circle cx="20" cy="21" r="1" />
             <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
           </svg>
-          <span className={`absolute top-1 right-1 md:top-[-2px] md:right-[-2px] min-w-[18px] h-[18px] flex items-center justify-center text-xs font-semibold rounded-full transition-colors ${totalItems > 0 ? "bg-rose-500 text-white" : "bg-[#F5C518] text-[#0D1B3E]"}`}>
+          <span suppressHydrationWarning className={`absolute top-1 right-1 md:top-[-2px] md:right-[-2px] min-w-[18px] h-[18px] flex items-center justify-center text-xs font-semibold rounded-full transition-colors ${totalItems > 0 ? "bg-rose-500 text-white" : "bg-[#F5C518] text-[#0D1B3E]"}`}>
             {totalItems}
           </span>
         </button>
@@ -522,13 +522,13 @@ export default function Navbar() {
               >
                 Shop
               </Link>
-              {/* <Link
-                href="/promotion"
-                className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/promotion") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}
+              <Link
+                href="/ecom/promotions"
+                className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/ecom/promotions") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Promotion
-              </Link> */}
+              </Link>
               <Link
                 href="/order-status"
                 className={`py-3 px-4 font-medium rounded-lg transition-colors ${pathname.startsWith("/order-status") ? "text-[#F5C518] bg-white/10 font-semibold" : "text-white/80 hover:bg-white/5 hover:text-[#F5C518]"}`}

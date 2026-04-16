@@ -258,12 +258,44 @@ export function formatRs(value) {
  * @param {string} [categoryName]
  * @param {string} [subCategoryName]
  */
+/** @returns {number|null} */
+export function parseOptionalPositiveDecimal(v) {
+  if (v == null || v === "") return null;
+  const n = typeof v === "string" ? parseFloat(v) : Number(v);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/**
+ * Retail line unit is `item.price`. When wholesale is configured and qty ≥ minimum, unit is wholesale price.
+ * @param {Object} item - cart line: price, wholesalePrice?, wholesaleMinimumQuantity?, qty
+ */
+export function effectiveUnitPriceForCartLine(item) {
+  const retail = Number(item?.price);
+  const wp = parseOptionalPositiveDecimal(item?.wholesalePrice);
+  const wq = parseOptionalPositiveDecimal(item?.wholesaleMinimumQuantity);
+  const qty = Math.max(0, Number(item?.qty) || 0);
+  if (wp != null && wq != null && qty >= wq) return wp;
+  return Number.isFinite(retail) ? retail : 0;
+}
+
+export function wholesaleAppliesToCartLine(item) {
+  const wp = parseOptionalPositiveDecimal(item?.wholesalePrice);
+  const wq = parseOptionalPositiveDecimal(item?.wholesaleMinimumQuantity);
+  const qty = Math.max(0, Number(item?.qty) || 0);
+  return wp != null && wq != null && qty >= wq;
+}
+
 export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "") {
   if (!item) return null;
   const price =
     typeof item.averagePrice === "string"
       ? parseFloat(item.averagePrice)
       : Number(item.averagePrice);
+  const wholesalePrice = parseOptionalPositiveDecimal(item.wholesalePrice ?? item.WholesalePrice);
+  const wholesaleMinimumQuantity = parseOptionalPositiveDecimal(
+    item.wholesaleMinimumQuantity ?? item.WholesaleMinimumQuantity,
+  );
   const subImages = Array.isArray(item.itemSubImages)
     ? item.itemSubImages
         .filter((s) => s && (s.imgUrl || s.imageUrl))
@@ -281,6 +313,9 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     name: item.name ?? "",
     productCode: item.code ?? "",
     price: Number.isFinite(price) ? price : 0,
+    wholesalePrice,
+    wholesaleMinimumQuantity,
+    categoryId: item.categoryId != null ? Number(item.categoryId) : undefined,
     image: item.productImage ?? "",
     /** Main / primary image out of stock (Items.IsOutOfStock from API). */
     isOutOfStock: !!(item.isOutOfStock ?? item.IsOutOfStock),
