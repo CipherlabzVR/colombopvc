@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCart } from "@/context/CartContext";
@@ -192,6 +192,25 @@ function WebXPayCompleteContent() {
   );
 }
 
+function WebXPayCompleteFallback() {
+  return (
+    <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+      <div className="max-w-lg w-full bg-white border border-slate-200 rounded-xl shadow-sm p-6 text-center">
+        <svg className="mx-auto mb-4 h-8 w-8 animate-spin text-emerald-600" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <h1 className="text-xl font-bold text-slate-900">Completing Your Order</h1>
+        <p className="mt-2 text-sm text-slate-600">Finalizing your payment...</p>
+      </div>
+    </main>
+  );
+}
+
 export default function WebXPayCompletePage() {
-  return <WebXPayCompleteContent />;
+  return (
+    <Suspense fallback={<WebXPayCompleteFallback />}>
+      <WebXPayCompleteContent />
+    </Suspense>
+  );
 }
