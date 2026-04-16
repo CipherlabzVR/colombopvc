@@ -47,7 +47,7 @@ export default function Navbar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryId, setCategoryId] = useState(null);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
@@ -61,6 +61,7 @@ export default function Navbar() {
   const accountMenuRef = useRef(null);
   const searchSuggestionsRef = useRef(null);
   const searchDebounceRef = useRef(null);
+  const searchInputRef = useRef(null);
   const { totalItems, openDrawer } = useCart();
 
   useEffect(() => setUser(getStoredUser()), [pathname]);
@@ -84,10 +85,20 @@ export default function Navbar() {
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    const openSearch = () => setMobileSearchOpen(true);
+    const openSearch = () => setSearchModalOpen(true);
     window.addEventListener("open-mobile-search", openSearch);
     return () => window.removeEventListener("open-mobile-search", openSearch);
   }, []);
+
+  useEffect(() => {
+    if (searchModalOpen) {
+      document.body.style.overflow = "hidden";
+      setTimeout(() => searchInputRef.current?.focus(), 100);
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [searchModalOpen]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -156,7 +167,7 @@ export default function Navbar() {
     setSuggestionsOpen(false);
     setSuggestions([]);
     router.push(params.toString() ? `/shop?${params.toString()}` : "/shop");
-    setMobileSearchOpen(false);
+    setSearchModalOpen(false);
   };
 
   const categoryLabel = categoryId != null
@@ -165,7 +176,7 @@ export default function Navbar() {
 
   return (
     <nav className="bg-[#0D1B3E] py-3">
-      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 flex flex-wrap items-center justify-between gap-3 md:gap-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between gap-3 md:gap-6 relative">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 shrink-0">
         <Image
@@ -182,8 +193,8 @@ export default function Navbar() {
         </span>
       </Link>
 
-      {/* Desktop: Nav links */}
-      <div className="hidden lg:flex items-center gap-5 md:gap-8 shrink-0">
+      {/* Center: Nav links — absolutely centered on desktop */}
+      <div className="hidden lg:flex items-center gap-5 absolute left-1/2 -translate-x-1/2">
         <Link href="/" className={navLinkClass(pathname, "/")}>
           Home
         </Link>
@@ -198,139 +209,16 @@ export default function Navbar() {
         </Link>
       </div>
 
-      {/* Desktop: Search bar */}
-      <form
-        role="search"
-        onSubmit={handleSearch}
-        className="hidden md:flex flex-1 min-w-0 max-w-xs lg:max-w-md items-stretch bg-[#1A2B52] rounded-lg border border-[#2D4080] focus-within:border-[#3B5998] focus-within:ring-2 focus-within:ring-[#3B5998]/30 transition-all"
-        aria-label="Search products"
-      >
-        <div className="relative shrink-0 overflow-visible" ref={categoryDropdownRef}>
-          <button
-            type="button"
-            onClick={() => setCategoryDropdownOpen((o) => !o)}
-            className="flex items-center gap-1.5 px-3 py-2.5 border-r border-[#2D4080] hover:bg-[#243460] transition-colors text-left min-w-0 max-w-[140px] sm:max-w-none"
-            aria-haspopup="listbox"
-            aria-expanded={categoryDropdownOpen}
-            aria-label="Choose category"
-          >
-            <span className="text-white/90 text-xs font-medium truncate">
-              {categoryLabel}
-            </span>
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" className={`text-white/70 shrink-0 transition-transform ${categoryDropdownOpen ? "rotate-180" : ""}`} aria-hidden>
-              <path d="M3 4.5l3 3 3-3" />
-            </svg>
-          </button>
-          {categoryDropdownOpen && (
-            <div
-              className="absolute top-full left-0 mt-1 min-w-[180px] max-h-72 overflow-y-auto bg-[#1A2B52] border border-[#2D4080] rounded-lg shadow-xl py-1"
-              style={{ zIndex: 9999 }}
-              role="listbox"
-            >
-              <button
-                type="button"
-                role="option"
-                aria-selected={categoryId == null}
-                onClick={() => { setCategoryId(null); setCategoryDropdownOpen(false); }}
-                className="w-full px-3 py-2.5 text-left text-sm text-white/90 hover:bg-[#243460] hover:text-white transition-colors"
-              >
-                All Categories
-              </button>
-              {navCategories.map((cat) => (
-                <button
-                  key={cat.categoryId}
-                  type="button"
-                  role="option"
-                  aria-selected={categoryId === cat.categoryId}
-                  onClick={() => { setCategoryId(cat.categoryId); setCategoryDropdownOpen(false); }}
-                  className="w-full px-3 py-2.5 text-left text-sm text-white/90 hover:bg-[#243460] hover:text-white transition-colors truncate"
-                >
-                  {cat.categoryName ?? ""}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex-1 min-w-0 relative" ref={searchSuggestionsRef}>
-          <input
-            type="search"
-            name="q"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") {
-                e.target.blur();
-                setCategoryDropdownOpen(false);
-                setSuggestionsOpen(false);
-              }
-            }}
-            placeholder="Search products, pipes, tools..."
-            autoComplete="off"
-            className="w-full px-3 py-2.5 text-white placeholder-white/50 text-sm outline-none bg-transparent focus:placeholder-white/40"
-            aria-label="Search"
-            aria-autocomplete="list"
-            aria-expanded={suggestionsOpen && suggestions.length > 0}
-          />
-          {suggestionsOpen && (suggestions.length > 0 || suggestionsLoading) && (
-            <div
-              className="absolute top-full left-0 right-0 mt-1 max-h-80 overflow-y-auto bg-[#1A2B52] border border-[#2D4080] rounded-lg shadow-xl py-1"
-              style={{ zIndex: 9999 }}
-              role="listbox"
-            >
-              {suggestionsLoading ? (
-                <div className="px-3 py-4 text-center text-white/70 text-sm">Searching…</div>
-              ) : (
-                suggestions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="option"
-                    className="w-full px-3 py-2.5 text-left text-sm text-white/90 hover:bg-[#243460] hover:text-white transition-colors flex items-center gap-3"
-                    onClick={() => {
-                      const params = new URLSearchParams();
-                      params.set("q", (item.name ?? "").trim() || searchQuery);
-                      if (categoryId != null && categoryId > 0) params.set("category", String(categoryId));
-                      setSuggestionsOpen(false);
-                      setSuggestions([]);
-                      router.push(`/shop?${params.toString()}`);
-                    }}
-                  >
-                    {item.productImage ? (
-                      <img src={item.productImage} alt="" className="w-10 h-10 rounded object-cover shrink-0 bg-white/10" />
-                    ) : (
-                      <span className="w-10 h-10 rounded bg-white/10 shrink-0 flex items-center justify-center">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/50">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
-                      </span>
-                    )}
-                    <span className="truncate">{item.name ?? ""}</span>
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-        </div>
+      {/* Right: Actions */}
+      <div className="flex items-center gap-5 shrink-0 min-h-[44px] ml-auto">
+        {/* Search icon — opens search modal */}
         <button
-          type="submit"
-          className="bg-[#F5C518] hover:bg-[#E0B415] text-[#0D1B3E] font-semibold text-sm px-4 py-2.5 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50 rounded-r-md"
-          aria-label="Search"
+          type="button"
+          onClick={() => setSearchModalOpen(true)}
+          className="flex items-center justify-center w-9 h-9 rounded-full bg-white/10 hover:bg-[#F5C518] hover:text-[#0D1B3E] text-white transition-all duration-200"
+          aria-label="Search products"
         >
-          Search
-        </button>
-      </form>
-
-      {/* Right section - pushed to the right (same row or when wrapped on mobile) */}
-      <div className="flex items-center gap-3 sm:gap-4 md:gap-6 shrink-0 min-h-[44px] pr-1 md:pr-0 ml-auto">
-        {/* Mobile search icon - 44px touch target on mobile */}
-        <button
-          onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-          className="md:hidden text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-white/5 -m-1"
-          aria-label="Toggle search"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.35-4.35" />
           </svg>
@@ -429,7 +317,7 @@ export default function Navbar() {
         {/* Cart - 44px touch target, extra spacing so badge doesn't crowd hamburger */}
         <button
           onClick={openDrawer}
-          className="relative text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-white/5 md:min-w-0 md:min-h-0 md:hover:bg-transparent md:p-1 -m-1 md:ml-3"
+          className="relative text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-white/5 md:min-w-0 md:min-h-0 md:hover:bg-transparent md:p-1 -m-1"
           aria-label="Cart"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="md:w-6 md:h-6">
@@ -455,34 +343,187 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile search bar */}
-      {mobileSearchOpen && (
-        <div className="w-full md:hidden order-last">
-          <form
-            role="search"
-            onSubmit={handleSearch}
-            className="flex items-center bg-[#1A2B52] rounded-lg border border-[#2D4080] overflow-hidden focus-within:border-[#3B5998] focus-within:ring-2 focus-within:ring-[#3B5998]/30 transition-all"
-            aria-label="Search products"
-          >
-            <input
-              type="search"
-              name="q"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search products, pipes, tools..."
-              autoComplete="off"
-              autoFocus
-              className="flex-1 min-w-0 px-3 py-3 text-white placeholder-white/45 text-sm outline-none bg-transparent"
-              aria-label="Search"
-            />
-            <button
-              type="submit"
-              className="bg-[#F5C518] hover:bg-[#E0B415] text-[#0D1B3E] font-semibold text-sm px-4 py-3 shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50"
-              aria-label="Search"
-            >
-              Search
-            </button>
-          </form>
+      {/* Search Modal */}
+      {searchModalOpen && (
+        <div className="fixed inset-0 z-[9999]" role="dialog" aria-modal="true" aria-label="Search products">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => { setSearchModalOpen(false); setCategoryDropdownOpen(false); setSuggestionsOpen(false); }}
+          />
+          <div className="relative w-full max-w-2xl mx-auto mt-[10vh] sm:mt-[15vh] px-4 animate-[searchSlideDown_0.25s_ease-out]">
+            <div className="bg-[#0D1B3E] rounded-2xl shadow-2xl border border-[#2D4080] overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <h2 className="text-white font-semibold text-base">Search Products</h2>
+                <button
+                  type="button"
+                  onClick={() => { setSearchModalOpen(false); setCategoryDropdownOpen(false); setSuggestionsOpen(false); }}
+                  className="text-white/60 hover:text-white transition-colors p-1 -m-1"
+                  aria-label="Close search"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Search form */}
+              <form role="search" onSubmit={handleSearch} className="p-5" ref={categoryDropdownRef}>
+                <div className="flex items-stretch bg-[#1A2B52] rounded-xl border border-[#2D4080] focus-within:border-[#F5C518] focus-within:ring-2 focus-within:ring-[#F5C518]/20 transition-all">
+                  {/* Category dropdown trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setCategoryDropdownOpen((o) => !o)}
+                    className="flex items-center gap-2 px-4 py-3.5 border-r border-[#2D4080] hover:bg-[#243460] rounded-l-xl transition-colors text-left shrink-0"
+                    aria-haspopup="listbox"
+                    aria-expanded={categoryDropdownOpen}
+                    aria-label="Choose category"
+                  >
+                    <span className="text-white/90 text-sm font-medium whitespace-nowrap">
+                      {categoryLabel}
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" className={`text-white/60 shrink-0 transition-transform ${categoryDropdownOpen ? "rotate-180" : ""}`} aria-hidden>
+                      <path d="M3 4.5l3 3 3-3" />
+                    </svg>
+                  </button>
+
+                  {/* Search input */}
+                  <div className="flex-1 min-w-0 relative" ref={searchSuggestionsRef}>
+                    <div className="flex items-center">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40 ml-3 shrink-0">
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35" />
+                      </svg>
+                      <input
+                        ref={searchInputRef}
+                        type="search"
+                        name="q"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onFocus={() => suggestions.length > 0 && setSuggestionsOpen(true)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            if (suggestionsOpen || categoryDropdownOpen) {
+                              setCategoryDropdownOpen(false);
+                              setSuggestionsOpen(false);
+                            } else {
+                              setSearchModalOpen(false);
+                            }
+                          }
+                        }}
+                        placeholder="Search products, pipes, fittings, tools..."
+                        autoComplete="off"
+                        className="w-full px-3 py-3.5 text-white placeholder-white/40 text-sm outline-none bg-transparent"
+                        aria-label="Search"
+                        aria-autocomplete="list"
+                        aria-expanded={suggestionsOpen && suggestions.length > 0}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Search button */}
+                  <button
+                    type="submit"
+                    className="bg-[#F5C518] hover:bg-[#E0B415] text-[#0D1B3E] font-bold text-sm px-6 py-3.5 transition-colors shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50 rounded-r-xl"
+                    aria-label="Search"
+                  >
+                    Search
+                  </button>
+                </div>
+
+                {/* Category dropdown list */}
+                {categoryDropdownOpen && (
+                  <div
+                    className="mt-2 max-h-64 overflow-y-auto bg-[#1A2B52] border border-[#2D4080] rounded-xl shadow-2xl py-1"
+                    role="listbox"
+                  >
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={categoryId == null}
+                      onClick={() => { setCategoryId(null); setCategoryDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${categoryId == null ? "text-[#F5C518] bg-[#243460] font-medium" : "text-white/90 hover:bg-[#243460] hover:text-white"}`}
+                    >
+                      All Categories
+                    </button>
+                    {navCategories.map((cat) => (
+                      <button
+                        key={cat.categoryId}
+                        type="button"
+                        role="option"
+                        aria-selected={categoryId === cat.categoryId}
+                        onClick={() => { setCategoryId(cat.categoryId); setCategoryDropdownOpen(false); }}
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors truncate ${categoryId === cat.categoryId ? "text-[#F5C518] bg-[#243460] font-medium" : "text-white/90 hover:bg-[#243460] hover:text-white"}`}
+                      >
+                        {cat.categoryName ?? ""}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Suggestions dropdown */}
+                {suggestionsOpen && (suggestions.length > 0 || suggestionsLoading) && (
+                  <div
+                    className="mt-2 max-h-72 overflow-y-auto bg-[#1A2B52] border border-[#2D4080] rounded-xl shadow-xl py-1"
+                    role="listbox"
+                  >
+                    {suggestionsLoading ? (
+                      <div className="px-4 py-5 text-center text-white/60 text-sm flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-4 w-4 text-[#F5C518]" viewBox="0 0 24 24" fill="none">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Searching...
+                      </div>
+                    ) : (
+                      suggestions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          role="option"
+                          className="w-full px-4 py-3 text-left text-sm text-white/90 hover:bg-[#243460] hover:text-white transition-colors flex items-center gap-3"
+                          onClick={() => {
+                            const params = new URLSearchParams();
+                            params.set("q", (item.name ?? "").trim() || searchQuery);
+                            if (categoryId != null && categoryId > 0) params.set("category", String(categoryId));
+                            setSuggestionsOpen(false);
+                            setSuggestions([]);
+                            setSearchModalOpen(false);
+                            router.push(`/shop?${params.toString()}`);
+                          }}
+                        >
+                          {item.productImage ? (
+                            <img src={item.productImage} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 bg-white/10" />
+                          ) : (
+                            <span className="w-11 h-11 rounded-lg bg-white/10 shrink-0 flex items-center justify-center">
+                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-white/40">
+                                <rect x="3" y="3" width="18" height="18" rx="2" />
+                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                <path d="m21 15-5-5L5 21" />
+                              </svg>
+                            </span>
+                          )}
+                          <span className="truncate">{item.name ?? ""}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </form>
+
+              {/* Keyboard hint */}
+              <div className="px-5 pb-4 flex items-center gap-3 text-white/30 text-xs">
+                <span className="flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">ESC</kbd>
+                  to close
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono">Enter</kbd>
+                  to search
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
