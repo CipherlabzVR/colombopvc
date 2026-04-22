@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { fetchAllWebItems } from "@/lib/shopApi";
+import { fetchLatestWebItems } from "@/lib/shopApi";
 import { fetchCategoryDiscountRules, fetchProductDiscountRules } from "@/lib/promotionsApi";
 import { computeBestCombinedLinePromotion, formatPromotionDiscountLabel } from "@/lib/categoryPromotionPricing";
 import {
@@ -13,6 +13,8 @@ import {
 } from "@/components/shop/shopData";
 
 const SKELETON_PLACEHOLDERS = 12;
+const HOME_PRODUCT_LIMIT = 12;
+const LATEST_FETCH_BUFFER = 48;
 
 function PromoBadge({ label }) {
   return (
@@ -35,14 +37,15 @@ function SkeletonCard() {
 }
 
 /**
- * All in-stock web items (paged catalog). Unit basis uses wholesale-at-qty-1 when applicable.
+ * Latest web-listed in-stock items (newest first from API), capped for the home grid.
+ * Unit basis uses wholesale-at-qty-1 when applicable.
  * @returns {Promise<Array<{ product: object, image: string, lineGross: number, saleTotal: number, pct: number, hasLinePromo: boolean, discountLabel: string }>>}
  */
 async function loadShowcaseItems() {
   const [categoryRules, productRules, { items: allRaw }] = await Promise.all([
     fetchCategoryDiscountRules(),
     fetchProductDiscountRules(),
-    fetchAllWebItems(),
+    fetchLatestWebItems({ pageSize: LATEST_FETCH_BUFFER }),
   ]);
 
   const enriched = [];
@@ -91,7 +94,7 @@ async function loadShowcaseItems() {
     });
   }
 
-  return enriched;
+  return enriched.slice(0, HOME_PRODUCT_LIMIT);
 }
 
 export default function ShopByProduct() {
@@ -135,7 +138,7 @@ export default function ShopByProduct() {
           All products
         </h2>
         <p className="text-slate-600 mb-8 sm:mb-10 font-poppins text-center text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
-          Full catalog online — promotion prices and wholesale rates match cart and checkout.
+          Our twelve newest listings — promotion prices and wholesale rates match cart and checkout. Browse the shop for the full catalog.
         </p>
 
         {error && (

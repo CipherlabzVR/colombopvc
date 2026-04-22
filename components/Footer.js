@@ -120,9 +120,22 @@ export default function Footer() {
         {/* Bottom bar */}
         <div className="py-4 sm:py-5 border-t border-slate-700/50">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-            <p className="text-slate-500 text-xs sm:text-sm font-poppins">
-              © {new Date().getFullYear()} Colombo PVC Center. All rights reserved.
-            </p>
+            <div className="flex flex-col items-center md:items-start gap-1">
+              <p className="text-slate-500 text-xs sm:text-sm font-poppins">
+                © {new Date().getFullYear()} Colombo PVC Center. All rights reserved.
+              </p>
+              <p className="text-slate-600 text-xs font-poppins tracking-wide">
+                Powered by{" "}
+                <a
+                  href="https://www.clovesis.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-slate-400 hover:text-[#FACC15] transition-colors"
+                >
+                  Clovesis Labz
+                </a>
+              </p>
+            </div>
             <div className="flex gap-4 sm:gap-6 text-xs sm:text-sm justify-center">
               <Link href="/privacy" className="text-slate-500 hover:text-slate-300 transition-colors font-poppins">
                 Privacy Policy
