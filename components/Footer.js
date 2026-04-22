@@ -105,13 +105,23 @@ export default function Footer() {
             </div>
 
             {/* Business Hours */}
-            <div>
+            <div className="min-w-0">
               <h4 className="text-white font-semibold text-sm uppercase tracking-wider mb-5 font-poppins">
                 Business Hours
               </h4>
-              <ul className="space-y-2 text-sm text-slate-400 font-poppins">
-                <li>Monday – Saturday: 9:00 AM – 6:00 PM</li>
-                <li>Sunday: 10:00 AM – 1:00 PM</li>
+              <ul className="space-y-4 text-sm font-poppins">
+                <li className="space-y-1">
+                  <p className="text-slate-300 leading-snug">Monday – Saturday</p>
+                  <p className="text-slate-400 tabular-nums leading-snug whitespace-nowrap">
+                    9:00 AM – 6:00 PM
+                  </p>
+                </li>
+                <li className="space-y-1">
+                  <p className="text-slate-300 leading-snug">Sunday</p>
+                  <p className="text-slate-400 tabular-nums leading-snug whitespace-nowrap">
+                    10:00 AM – 1:00 PM
+                  </p>
+                </li>
               </ul>
             </div>
           </div>
