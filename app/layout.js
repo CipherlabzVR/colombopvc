@@ -110,10 +110,12 @@ export default function RootLayout({ children }) {
           <Suspense fallback={<div className="bg-[#0D1B3E] min-h-[72px] md:min-h-[88px]" />}>
             <Navbar />
           </Suspense>
-          <main className="pb-14 md:pb-0">
+          <main>
             {children}
           </main>
-          <Footer />
+          <div className="pb-14 md:pb-0">
+            <Footer />
+          </div>
           <CartDrawer />
           <CartToast />
           <MobileNav />

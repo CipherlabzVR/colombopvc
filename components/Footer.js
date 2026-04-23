@@ -14,7 +14,88 @@ export default function Footer() {
       {/* Top accent */}
       <div className="h-1 bg-[#FACC15]" />
 
-      <div className="max-w-7xl mx-auto px-2 sm:px-3 lg:px-4">
+      {/* Compact mobile footer (< md) */}
+      <div className="md:hidden max-w-7xl mx-auto px-4 py-8">
+        <div className="flex items-center gap-3 mb-4">
+          <Image
+            src="/logo.png"
+            alt="Colombo PVC Center"
+            width={40}
+            height={40}
+            className="rounded-lg shrink-0"
+          />
+          <div className="min-w-0">
+            <p className="text-base font-bold text-white font-poppins leading-tight">
+              Colombo <span className="text-[#FACC15]">PVC</span> Center
+            </p>
+            <p className="text-[11px] text-slate-400 font-poppins">PVC pipes, fittings & plumbing supplies</p>
+          </div>
+        </div>
+
+        {/* Inline quick links */}
+        <ul className="flex flex-wrap gap-x-4 gap-y-2 mb-5 font-poppins">
+          <li><Link href="/" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">Home</Link></li>
+          <li><Link href="/shop" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">Shop</Link></li>
+          <li><Link href="/ecom/promotions" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">Promotion</Link></li>
+          <li><Link href="/about" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">About</Link></li>
+          <li><Link href="/contact" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">Contact</Link></li>
+          <li><Link href="/faqs" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors">FAQs</Link></li>
+        </ul>
+
+        {/* Compact contact */}
+        <div className="space-y-2 mb-5 font-poppins">
+          <a href="tel:94776867877" className="flex items-center gap-2 text-sm text-slate-300 hover:text-[#FACC15] transition-colors">
+            <svg className="w-4 h-4 text-[#FACC15] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+            077 686 7877
+          </a>
+          <a href="mailto:sales.colombopvc@gmail.com" className="flex items-center gap-2 text-sm text-slate-300 hover:text-[#FACC15] transition-colors break-all">
+            <svg className="w-4 h-4 text-[#FACC15] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+            sales.colombopvc@gmail.com
+          </a>
+          <p className="flex items-start gap-2 text-sm text-slate-400">
+            <svg className="w-4 h-4 text-[#FACC15] shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            No. 192/4, Srimath Bandaranayaka Mw, Colombo 12
+          </p>
+        </div>
+
+        {/* Social + policies */}
+        <div className="flex items-center justify-between mb-4">
+          <a
+            href="https://www.facebook.com/share/1CfDuyt7Bo/?mibextid=wwXIfr"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-9 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-300 hover:bg-[#FACC15] hover:text-slate-900 transition-all"
+            aria-label="Facebook"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </a>
+          <div className="flex gap-3 text-[11px] font-poppins">
+            <Link href="/privacy" className="text-slate-400 hover:text-[#FACC15] transition-colors">Privacy</Link>
+            <Link href="/terms" className="text-slate-400 hover:text-[#FACC15] transition-colors">Terms</Link>
+            <Link href="/refund" className="text-slate-400 hover:text-[#FACC15] transition-colors">Refund</Link>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-700/50 text-center">
+          <p className="text-[11px] text-slate-500 font-poppins">
+            © {new Date().getFullYear()} Colombo PVC Center
+          </p>
+          <p className="text-[10px] text-slate-600 font-poppins mt-0.5">
+            Powered by{" "}
+            <a
+              href="https://www.clovesis.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-400 hover:text-[#FACC15] transition-colors"
+            >
+              Clovesis Labz
+            </a>
+          </p>
+        </div>
+      </div>
+
+      {/* Full footer (md and up) */}
+      <div className="hidden md:block max-w-7xl mx-auto px-2 sm:px-3 lg:px-4">
         {/* Main footer content */}
         <div className="py-10 sm:py-14 md:py-16">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-10 lg:gap-12">
