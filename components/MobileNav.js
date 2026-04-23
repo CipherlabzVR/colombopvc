@@ -2,7 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useCart } from "@/context/CartContext";
+
+const AUTH_STORAGE_KEY = "colombo_pvc_user";
+
+function getStoredUser() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && (data.email || data.name) ? data : null;
+  } catch {
+    return null;
+  }
+}
 
 const navItems = [
   {
@@ -48,7 +63,7 @@ const navItems = [
     ),
   },
   {
-    href: "/account",
+    account: true,
     label: "Account",
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -62,6 +77,9 @@ const navItems = [
 export default function MobileNav() {
   const pathname = usePathname();
   const { totalItems, openDrawer } = useCart();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => setUser(getStoredUser()), [pathname]);
 
   const handleSearch = () => {
     window.dispatchEvent(new CustomEvent("open-mobile-search"));
@@ -86,6 +104,25 @@ export default function MobileNav() {
               >
                 {item.icon}
               </button>
+            );
+          }
+          if (item.account) {
+            const accountHref = user ? "/account/profile" : "/signin";
+            const isActive = user
+              ? pathname?.startsWith("/account")
+              : pathname?.startsWith("/signin") || pathname?.startsWith("/signup");
+            return (
+              <Link
+                key={item.label}
+                href={accountHref}
+                className={`flex flex-col items-center justify-center flex-1 min-w-0 h-full transition-colors touch-manipulation ${
+                  isActive ? "text-[#1f2937]" : "text-gray-600 hover:text-[#1f2937] active:text-[#1f2937]"
+                }`}
+                aria-label={user ? "My profile" : "Sign in"}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {item.icon}
+              </Link>
             );
           }
           if (item.cart) {

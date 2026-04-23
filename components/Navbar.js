@@ -224,8 +224,8 @@ export default function Navbar() {
           </svg>
         </button>
 
-        {/* User / Account - show name when logged in, dropdown with Sign out */}
-        <div className="relative" ref={accountMenuRef}>
+        {/* User / Account - hidden on mobile (bottom nav has it), visible md+ */}
+        <div className="relative hidden md:block" ref={accountMenuRef}>
           {user ? (
             <>
               <button
@@ -314,10 +314,10 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Cart - 44px touch target, extra spacing so badge doesn't crowd hamburger */}
+        {/* Cart - hidden on mobile (bottom nav has it), visible md+ */}
         <button
           onClick={openDrawer}
-          className="relative text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg hover:bg-white/5 md:min-w-0 md:min-h-0 md:hover:bg-transparent md:p-1 -m-1"
+          className="relative hidden md:flex text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] items-center justify-center rounded-lg hover:bg-white/5 md:min-w-0 md:min-h-0 md:hover:bg-transparent md:p-1 -m-1"
           aria-label="Cart"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="md:w-6 md:h-6">
@@ -330,10 +330,10 @@ export default function Navbar() {
           </span>
         </button>
 
-        {/* Hamburger - 44px touch target, clear spacing from cart */}
+        {/* Hamburger - hidden on phones (bottom nav covers main routes), shown on tablets up to lg */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="lg:hidden text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-white/5 -m-1"
+          className="hidden md:flex lg:hidden text-white hover:text-[#F5C518] active:opacity-80 transition-colors min-w-[44px] min-h-[44px] flex-col items-center justify-center gap-1.5 rounded-lg hover:bg-white/5 -m-1"
           aria-label="Toggle menu"
           aria-expanded={mobileMenuOpen}
         >
