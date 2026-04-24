@@ -501,13 +501,13 @@ function OrderSuccessContent() {
             </div>
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Delivery Address</p>
-              <p className="text-sm text-slate-800">{order.customer.address}</p>
-              {(order.customer.city || order.customer.district || order.customer.postalCode) && (
+              <p className="text-sm text-slate-800">{order.customer.address}, {order.customer.postalCode}</p>
+              {/* {(order.customer.city || order.customer.district || order.customer.postalCode) && (
                 <p className="text-sm text-slate-600 mt-0.5">
                   {[order.customer.city, order.customer.district].filter(Boolean).join(", ")}
                   {order.customer.postalCode ? ` ${order.customer.postalCode}` : ""}
                 </p>
-              )}
+              )} */}
             </div>
           </div>
 

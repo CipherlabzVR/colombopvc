@@ -222,6 +222,9 @@ export default function AboutPage() {
         }
 
         .value-card {
+          box-sizing:border-box;
+          display:flex; flex-direction:column;
+          height:100%; min-height:0;
           padding:28px; border-radius:18px;
           border:1px solid #e2e8f0; background:#f8fafc;
           transition: border-color 0.3s, box-shadow 0.3s, transform 0.2s;
@@ -438,9 +441,9 @@ export default function AboutPage() {
             What we<br/><span style={{ fontWeight:300, color:"#64748b" }}>stand for.</span>
           </h2>
 
-          <div className="anim-up d3" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px,1fr))", gap:16 }}>
+          <div className="anim-up d3" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px,1fr))", gap:16, alignItems:"stretch" }}>
             {values.map((v, i) => (
-              <TiltCard key={v.title}>
+              <TiltCard key={v.title} style={{ height:"100%", display:"flex", flexDirection:"column", minHeight:0 }}>
                 <div className="value-card">
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
                     <span style={{ fontSize:22, color:"#fbbf24" }} aria-hidden>{v.symbol}</span>

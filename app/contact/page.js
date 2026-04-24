@@ -36,7 +36,12 @@ function DotPattern() {
 
 const contactItems = [
   {
-    label: "Phone", value: "Hot line 077 686 7877 · 077 726 4913 · 076 462 7447", href: "tel:94776867877",
+    label: "Phone",
+    phones: [
+      { note: "Hot line", display: "077 686 7877", tel: "+94776867877" },
+      { note: null, display: "077 726 4913", tel: "+94777264913" },
+      { note: null, display: "076 462 7447", tel: "+94764627447" },
+    ],
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -253,6 +258,28 @@ export default function ContactPage() {
           background:#fffbeb;
         }
 
+        .contact-tel-row {
+          display:grid; grid-template-columns:minmax(5.25rem, auto) 1fr;
+          align-items:baseline; column-gap:12px; row-gap:4px;
+          padding:8px 10px; margin:0 -10px; border-radius:10px;
+          text-decoration:none; color:#1e293b;
+          transition: background 0.2s, color 0.2s;
+        }
+        .contact-tel-row:hover { background:#fff7ed; color:#b45309; }
+        .contact-tel-row:focus-visible {
+          outline:2px solid #fbbf24; outline-offset:2px;
+        }
+        .contact-tel-note {
+          font-size:11px; font-weight:600; letter-spacing:0.08em;
+          text-transform:uppercase; color:#94a3b8;
+        }
+        .contact-tel-note:empty { visibility:hidden; }
+        .contact-tel-row:hover .contact-tel-note:not(:empty) { color:#d97706; }
+        .contact-tel-num {
+          font-size:15px; font-weight:600; font-variant-numeric: tabular-nums;
+          letter-spacing:0.02em;
+        }
+
         .field-wrap { display:flex; flex-direction:column; }
         .field-label {
           font-size:11px; font-weight:600; letter-spacing:0.12em;
@@ -381,7 +408,27 @@ export default function ContactPage() {
             <div className="anim-up d3" style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:32 }}>
               {contactItems.map((item) => (
                 <TiltCard key={item.label}>
-                  {item.href ? (
+                  {item.phones ? (
+                    <div className="contact-card" style={{ cursor:"default", alignItems:"flex-start" }}>
+                      <div style={{ width:48, height:48, borderRadius:12, flexShrink:0, background:"#fef3c7", color:"#d97706", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {item.icon}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:11, fontWeight:600, letterSpacing:"0.12em", textTransform:"uppercase", color:"#94a3b8", marginBottom:8 }}>{item.label}</div>
+                        <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                          {item.phones.map((line) => (
+                            <a key={line.tel} href={`tel:${line.tel}`} className="contact-tel-row">
+                              <span className="contact-tel-note">{line.note ?? ""}</span>
+                              <span className="contact-tel-num">{line.display}</span>
+                            </a>
+                          ))}
+                        </div>
+                        <div style={{ fontSize:11, color:"#94a3b8", marginTop:10, lineHeight:1.5 }}>
+                          Tap a number to call on your phone.
+                        </div>
+                      </div>
+                    </div>
+                  ) : item.href ? (
                     <a href={item.href} className="contact-card">
                       <div style={{ width:48, height:48, borderRadius:12, flexShrink:0, background:"#fef3c7", color:"#d97706", display:"flex", alignItems:"center", justifyContent:"center" }}>
                         {item.icon}
@@ -390,7 +437,7 @@ export default function ContactPage() {
                         <div style={{ fontSize:11, fontWeight:600, letterSpacing:"0.12em", textTransform:"uppercase", color:"#94a3b8", marginBottom:2 }}>{item.label}</div>
                         <div style={{ fontSize:15, fontWeight:500, color:"#1e293b", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{item.value}</div>
                       </div>
-                      <svg width="18" height="18" fill="none" stroke="#cbd5e1" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink:0 }}>
+                      <svg width="18" height="18" fill="none" stroke="#cbd5e1" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink:0 }} aria-hidden>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
                       </svg>
                     </a>
@@ -401,7 +448,7 @@ export default function ContactPage() {
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:11, fontWeight:600, letterSpacing:"0.12em", textTransform:"uppercase", color:"#94a3b8", marginBottom:2 }}>{item.label}</div>
-                        <div style={{ fontSize:15, fontWeight:500, color:"#1e293b" }}>{item.value}</div>
+                        <div style={{ fontSize:15, fontWeight:500, color:"#1e293b", lineHeight:1.55 }}>{item.value}</div>
                       </div>
                     </div>
                   )}

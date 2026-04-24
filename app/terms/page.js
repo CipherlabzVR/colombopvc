@@ -136,27 +136,6 @@ export default function TermsPage() {
         </p>
       ),
     },
-    {
-      num: "15", symbol: "◉", title: "Contact Us",
-      content: (
-        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {[
-            { icon:"✉️", label:"Email", value:"info@colombopvc.lk", href:"mailto:info@colombopvc.lk" },
-            { icon:"📞", label:"Phone", value:"+94 XX XXX XXXX", href:"tel:" },
-            { icon:"📍", label:"Address", value:"Colombo, Sri Lanka", href:null },
-          ].map(({ icon, label, value, href }) => (
-            <div key={label} style={{ display:"flex", alignItems:"center", gap:12 }}>
-              <span style={{ fontSize:16 }}>{icon}</span>
-              <span style={{ fontSize:13, fontWeight:600, color:"#94a3b8", textTransform:"uppercase", letterSpacing:"0.1em", minWidth:56 }}>{label}</span>
-              {href
-                ? <a href={href} style={{ fontSize:15, color:"#f59e0b", fontWeight:600, textDecoration:"none" }}>{value}</a>
-                : <span style={{ fontSize:15, color:"#0f172a", fontWeight:500 }}>{value}</span>
-              }
-            </div>
-          ))}
-        </div>
-      ),
-    },
   ];
 
   const quickFacts = [
