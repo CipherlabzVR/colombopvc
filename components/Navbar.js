@@ -85,12 +85,6 @@ export default function Navbar() {
   }, [pathname, searchParams]);
 
   useEffect(() => {
-    const openSearch = () => setSearchModalOpen(true);
-    window.addEventListener("open-mobile-search", openSearch);
-    return () => window.removeEventListener("open-mobile-search", openSearch);
-  }, []);
-
-  useEffect(() => {
     if (searchModalOpen) {
       document.body.style.overflow = "hidden";
       setTimeout(() => searchInputRef.current?.focus(), 100);

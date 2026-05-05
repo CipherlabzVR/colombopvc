@@ -7,6 +7,9 @@ import { useCart } from "@/context/CartContext";
 
 const AUTH_STORAGE_KEY = "colombo_pvc_user";
 
+const NAV_LABEL_CLASS =
+  "mt-0.5 text-[10px] font-semibold leading-tight text-center px-0.5 max-w-[4.5rem] truncate";
+
 function getStoredUser() {
   if (typeof window === "undefined") return null;
   try {
@@ -42,12 +45,22 @@ const navItems = [
     ),
   },
   {
-    search: true,
-    label: "Search",
+    href: "/ecom/promotions",
+    label: "Promotion",
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.35-4.35" />
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l6.59-6.58a1 1 0 0 0 0-1.42L12 2Z" />
+        <circle cx="7" cy="7" r="1" fill="currentColor" stroke="none" />
       </svg>
     ),
   },
@@ -81,31 +94,13 @@ export default function MobileNav() {
 
   useEffect(() => setUser(getStoredUser()), [pathname]);
 
-  const handleSearch = () => {
-    window.dispatchEvent(new CustomEvent("open-mobile-search"));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   return (
     <nav
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200"
       aria-label="Mobile navigation"
     >
-      <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
+      <div className="flex items-center justify-around min-h-14 py-1 max-w-lg mx-auto">
         {navItems.map((item) => {
-          if (item.search) {
-            return (
-              <button
-                key={item.label}
-                type="button"
-                onClick={handleSearch}
-                className="flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-600 hover:text-[#1f2937] active:text-[#1f2937] transition-colors touch-manipulation"
-                aria-label={item.label}
-              >
-                {item.icon}
-              </button>
-            );
-          }
           if (item.account) {
             const accountHref = user ? "/account/profile" : "/signin";
             const isActive = user
@@ -122,6 +117,7 @@ export default function MobileNav() {
                 aria-current={isActive ? "page" : undefined}
               >
                 {item.icon}
+                <span className={NAV_LABEL_CLASS}>{item.label}</span>
               </Link>
             );
           }
@@ -134,12 +130,15 @@ export default function MobileNav() {
                 className="relative flex flex-col items-center justify-center flex-1 min-w-0 h-full text-gray-600 hover:text-[#1f2937] active:text-[#1f2937] transition-colors touch-manipulation"
                 aria-label={item.label}
               >
-                {item.icon}
-                {totalItems > 0 && (
-                  <span className="absolute top-2 right-1/2 translate-x-4 min-w-[18px] h-[18px] flex items-center justify-center bg-rose-600 text-white text-xs font-semibold rounded-full">
-                    {totalItems}
-                  </span>
-                )}
+                <span className="relative inline-flex shrink-0">
+                  {item.icon}
+                  {totalItems > 0 && (
+                    <span className="absolute -top-1 right-1/2 translate-x-[14px] min-w-[18px] h-[18px] flex items-center justify-center bg-rose-600 text-white text-xs font-semibold rounded-full">
+                      {totalItems}
+                    </span>
+                  )}
+                </span>
+                <span className={NAV_LABEL_CLASS}>{item.label}</span>
               </button>
             );
           }
@@ -155,6 +154,7 @@ export default function MobileNav() {
               aria-current={isActive ? "page" : undefined}
             >
               {item.icon}
+              <span className={NAV_LABEL_CLASS}>{item.label}</span>
             </Link>
           );
         })}

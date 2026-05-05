@@ -371,6 +371,16 @@ export function getPreferredInStockOffer(product) {
     };
   }
   const fallbackUrl = product.image || subs.find((s) => s?.url)?.url || "";
+  /** API often leaves productImage blank while isOutOfStock is false — do not treat as unsellable. */
+  if (!product.isOutOfStock && Number.isFinite(priceBase) && priceBase > 0) {
+    return {
+      image: fallbackUrl,
+      price: priceBase,
+      itemSubImageId: null,
+      isEntirelyOutOfStock: false,
+      subDescription: "",
+    };
+  }
   return {
     image: fallbackUrl,
     price: priceBase,
