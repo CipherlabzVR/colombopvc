@@ -158,8 +158,8 @@ export default function Footer() {
                   <div>
                     <p className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Phone</p>
                     <a href="tel:94776867877" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors block">Hot line: 077 686 7877</a>
-                    <a href="tel:94777264913" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors block">077 726 4913</a>
-                    <a href="tel:94764627447" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors block">076 462 7447</a>
+                    <a href="tel:94777264913" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors block">Niroshan: 077 726 4913</a>
+                    <a href="tel:94764627447" className="text-sm text-slate-300 hover:text-[#FACC15] transition-colors block">Riyasdeen:076 462 7447</a>
                   </div>
                 </li>
                 <li className="flex items-start gap-3">
