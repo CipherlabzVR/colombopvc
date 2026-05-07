@@ -42,7 +42,7 @@ export async function POST(request) {
 
     const gatewayUrl =
       process.env.NEXT_PUBLIC_WEBXPAY_GATEWAY_URL ||
-      "https://stagingxpay.info/index.php?route=checkout/billing";
+      "https://webxpay.com.info/index.php?route=checkout/billing";
 
     return NextResponse.json({ formData, gatewayUrl });
   } catch (err) {
