@@ -398,6 +398,7 @@ export default function ShopClient() {
 
       {quickViewProduct && (
         <ProductQuickView
+          key={quickViewProduct.id}
           product={quickViewProduct}
           onClose={handleCloseQuickView}
         />
