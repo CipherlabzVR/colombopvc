@@ -4,6 +4,7 @@ import ShopByProduct from "@/components/ShopByProduct";
 import BlogPostSection from "@/components/BlogPostSection";
 import WhyChooseUs from "@/components/WhyChooseUs";
 import ClientsSection from "@/components/ClientsSection";
+import CorsLinkRegistrar from "@/components/CorsLinkRegistrar";
 import { SEO } from "@/lib/seo";
 
 export const metadata = {
@@ -18,6 +19,7 @@ export const metadata = {
 export default function Home() {
   return (
     <div>
+      <CorsLinkRegistrar />
       <HeroSection />
       {/* <ShopByCategory /> */}
       <ShopByProduct />
