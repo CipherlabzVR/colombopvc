@@ -71,7 +71,6 @@ export default function CheckoutPage() {
     city: "",
     district: "",
     postalCode: "",
-    notes: "",
     paymentMethod: PAYMENT_OPTIONS.CashOnDelivery,
   });
 
@@ -384,7 +383,7 @@ export default function CheckoutPage() {
         city: form.city.trim(),
         district: form.district.trim(),
         postalCode: (form.postalCode ?? "").trim(),
-        notes: (form.notes ?? "").trim(),
+        notes: "",
       };
 
       if (paymentOption === PAYMENT_OPTIONS.Card) {
@@ -731,15 +730,6 @@ export default function CheckoutPage() {
                         );
                       })}
                     </ul>
-                    {selectedAddressId && (
-                      <div className="pt-2 space-y-4 border-t border-slate-200">
-                        {/* <p className="text-sm text-slate-600">Selected address will be used for delivery. Add order notes below if needed.</p> */}
-                        {/* <div>
-                          <label className="block text-sm font-medium text-slate-700 mb-1">Order Notes (optional)</label>
-                          <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} className={inputCls("notes")} placeholder="Any special instructions for delivery..." />
-                        </div> */}
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -766,10 +756,6 @@ export default function CheckoutPage() {
                         <label className="block text-sm font-medium text-slate-700 mb-1">Postal Code</label>
                         <input name="postalCode" value={form.postalCode} onChange={handleChange} className={inputCls("postalCode")} placeholder="10100" />
                       </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Order Notes (optional)</label>
-                      <textarea name="notes" value={form.notes} onChange={handleChange} rows={3} className={inputCls("notes")} placeholder="Any special instructions for delivery..." />
                     </div>
                   </div>
                 )}
