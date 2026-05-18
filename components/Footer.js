@@ -76,6 +76,16 @@ export default function Footer() {
           </div>
         </div>
 
+        <div
+          className="flex items-center justify-center gap-3 mb-4 opacity-95"
+          role="img"
+          aria-label="We accept Visa, Mastercard, and American Express"
+        >
+          <Image src="/payments/visa.svg" alt="" width={52} height={17} className="h-4 w-auto" />
+          <Image src="/payments/master.svg" alt="" width={40} height={25} className="h-6 w-auto" />
+          <Image src="/payments/American.svg" alt="" width={40} height={40} className="h-5 w-auto" />
+        </div>
+
         <div className="pt-4 border-t border-slate-700/50 text-center">
           <p className="text-[11px] text-slate-500 font-poppins">
             © {new Date().getFullYear()} Colombo PVC Center
@@ -210,8 +220,8 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="py-4 sm:py-5 border-t border-slate-700/50">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-            <div className="flex flex-col items-center md:items-start gap-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-center text-center md:text-left">
+            <div className="flex flex-col items-center md:items-start gap-1 md:justify-self-start">
               <p className="text-slate-500 text-xs sm:text-sm font-poppins">
                 © {new Date().getFullYear()} Colombo PVC Center. All rights reserved.
               </p>
@@ -227,7 +237,16 @@ export default function Footer() {
                 </a>
               </p>
             </div>
-            <div className="flex gap-4 sm:gap-6 text-xs sm:text-sm justify-center">
+            <div
+              className="flex items-center justify-center gap-3 sm:gap-4 opacity-95 py-1"
+              role="img"
+              aria-label="We accept Visa, Mastercard, and American Express"
+            >
+              <Image src="/payments/visa.svg" alt="" width={56} height={18} className="h-4 sm:h-[1.125rem] w-auto" />
+              <Image src="/payments/master.svg" alt="" width={44} height={27} className="h-6 sm:h-7 w-auto" />
+              <Image src="/payments/American.svg" alt="" width={48} height={48} className="h-5 sm:h-6 w-auto" />
+            </div>
+            <div className="flex flex-wrap gap-4 sm:gap-6 text-xs sm:text-sm justify-center md:justify-self-end md:justify-end">
               <Link href="/privacy" className="text-slate-500 hover:text-slate-300 transition-colors font-poppins">
                 Privacy Policy
               </Link>

@@ -107,6 +107,7 @@ function normalizeOrderFromApi(apiOrder, orderIdForFallback) {
       phone,
       email,
       address: fullAddress || "—",
+      streetAddress: addressLine1 || "",
       city: addressLine2 || "",
       district: addressLine3 || "",
       postalCode: addr.postalCode ?? addr.PostalCode ?? "",
@@ -237,6 +238,7 @@ function OrderSuccessContent() {
                   phone: normalized.customer.phone || (addr.mobileNo ?? addr.MobileNo ?? ""),
                   email: normalized.customer.email || (addr.email ?? addr.Email ?? ""),
                   address: fullAddr || normalized.customer.address,
+                  streetAddress: a1 || normalized.customer.streetAddress,
                   city: normalized.customer.city || a2,
                   district: normalized.customer.district || a3,
                   postalCode: normalized.customer.postalCode || (addr.postalCode ?? addr.PostalCode ?? ""),
@@ -254,13 +256,41 @@ function OrderSuccessContent() {
       .finally(() => setLoading(false));
   }, [orderId, customerId]);
 
-  function downloadOrderPdf() {
+  async function downloadOrderPdf() {
     if (!order) return;
     const doc = new jsPDF({ format: "a4", unit: "mm" });
     const margin = 18;
+    const pageW = 210;
     let y = 20;
     const lineH = 6;
     const sectionGap = 4;
+    const colGap = 6;
+    const usableW = pageW - 2 * margin;
+    const halfW = (usableW - colGap) / 2;
+    const leftX = margin;
+    const rightX = margin + halfW + colGap;
+
+    let logoDataUrl = null;
+    try {
+      const res = await fetch("/logo.png");
+      if (res.ok) {
+        const blob = await res.blob();
+        logoDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+      }
+    } catch {
+      /* no logo */
+    }
+
+    const logoSizeMm = 24;
+    const logoTop = 10;
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", pageW - margin - logoSizeMm, logoTop, logoSizeMm, logoSizeMm);
+    }
 
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
@@ -272,51 +302,84 @@ function OrderSuccessContent() {
     doc.text(`Order ID: ${order.orderNo ?? order.orderId}`, margin, y);
     y += lineH + sectionGap;
 
+    /* Row: CUSTOMER | DELIVERY ADDRESS */
+    const addrLine = (s) => String(s ?? "").trim();
+    const street = addrLine(order.customer.streetAddress);
+    const cityLine = addrLine(order.customer.city);
+    const districtLine = addrLine(order.customer.district);
+    const postalLine = addrLine(order.customer.postalCode);
+    const addrLines = [street, cityLine, districtLine, postalLine].map((line) => line || "—");
+
+    const rowTopCustomer = y;
+    let yL = rowTopCustomer;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
-    doc.text("CUSTOMER", margin, y);
-    y += lineH;
+    doc.text("CUSTOMER", leftX, yL);
+    yL += lineH;
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(`${order.customer.firstName} ${order.customer.lastName}`, margin, y);
-    y += lineH;
-    doc.text(order.customer.phone, margin, y);
-    y += lineH;
+    doc.splitTextToSize(`${order.customer.firstName} ${order.customer.lastName}`, halfW).forEach((w) => {
+      doc.text(w, leftX, yL);
+      yL += lineH;
+    });
+    doc.splitTextToSize(order.customer.phone, halfW).forEach((w) => {
+      doc.text(w, leftX, yL);
+      yL += lineH;
+    });
     if (order.customer.email) {
-      doc.text(order.customer.email, margin, y);
-      y += lineH;
+      doc.splitTextToSize(order.customer.email, halfW).forEach((w) => {
+        doc.text(w, leftX, yL);
+        yL += lineH;
+      });
     }
-    y += sectionGap;
 
+    let yR = rowTopCustomer;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text("DELIVERY ADDRESS", margin, y);
-    y += lineH;
+    doc.text("DELIVERY ADDRESS", rightX, yR);
+    yR += lineH;
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(order.customer.address || "—", margin, y);
-    y += lineH;
-    doc.text(`${order.customer.city || ""}, ${order.customer.district || ""}${order.customer.postalCode ? " " + order.customer.postalCode : ""}`.trim() || "—", margin, y);
-    y += lineH + sectionGap;
+    addrLines.forEach((line) => {
+      doc.splitTextToSize(line, halfW).forEach((wline) => {
+        doc.text(wline, rightX, yR);
+        yR += lineH;
+      });
+    });
+    y = Math.max(yL, yR) + sectionGap;
 
+    /* Row: PAYMENT METHOD | ORDER DATE */
+    const rowTopPay = y;
+    yL = rowTopPay;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text("PAYMENT METHOD", margin, y);
-    y += lineH;
+    doc.text("PAYMENT METHOD", leftX, yL);
+    yL += lineH;
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(getPaymentLabel(order.customer.paymentMethod), margin, y);
-    y += lineH + sectionGap;
+    doc.splitTextToSize(getPaymentLabel(order.customer.paymentMethod), halfW).forEach((w) => {
+      doc.text(w, leftX, yL);
+      yL += lineH;
+    });
 
+    yR = rowTopPay;
     doc.setFont("helvetica", "bold");
     doc.setTextColor(100, 116, 139);
-    doc.text("ORDER DATE", margin, y);
-    y += lineH;
+    doc.text("ORDER DATE", rightX, yR);
+    yR += lineH;
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
-    doc.text(new Date(order.date).toLocaleDateString("en-LK", { year: "numeric", month: "long", day: "numeric" }), margin, y);
-    y += lineH + sectionGap;
+    const dateStr = new Date(order.date).toLocaleDateString("en-LK", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    doc.splitTextToSize(dateStr, halfW).forEach((w) => {
+      doc.text(w, rightX, yR);
+      yR += lineH;
+    });
+    y = Math.max(yL, yR) + sectionGap;
 
     if (order.customer.notes) {
       doc.setFont("helvetica", "bold");
