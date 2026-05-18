@@ -44,8 +44,7 @@ function getStoredUser() {
 }
 
 /** Standard delivery charge (no automatic “free” threshold — free delivery should come from configured promotions only). */
-// const DELIVERY_FEE = 500;
-const DELIVERY_FEE = 1;
+const DELIVERY_FEE = 500;
 
 function generateOrderId() {
   const ts = Date.now().toString(36).toUpperCase();
