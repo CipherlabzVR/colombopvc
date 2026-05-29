@@ -351,7 +351,7 @@ export default function RefundPage() {
               </div>
               {[
                 { icon:"📞", label:"Call", value:"077 686 7877 (Hot line)", href:"tel:94776867877" },
-                { icon:"✉️", label:"Email", value:"sales.colombopvc@gmail.com", href:"mailto:sales.colombopvc@gmail.com" },
+                { icon:"✉️", label:"Email", value:"sales@colombopvc.lk", href:"mailto:sales@colombopvc.lk" },
               ].map(({ icon, label, value, href }) => (
                 <a
                   key={label}

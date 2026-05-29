@@ -121,7 +121,7 @@ const faqs = [
   },
   {
     question: "Do you offer wholesale or bulk pricing?",
-    answer: "Yes, we offer competitive pricing for contractors, builders, and bulk orders. Contact our sales team at sales.colombopvc@gmail.com with your requirements for a custom quote.",
+    answer: "Yes, we offer competitive pricing for contractors, builders, and bulk orders. Contact our sales team at sales@colombopvc.lk with your requirements for a custom quote.",
   },
   {
     question: "What are your business hours?",
@@ -143,7 +143,7 @@ const categories = [
 
 const faqCategories = ["All", "Products", "Delivery", "Payments", "Products", "Products", "Hours", "Products"];
 
-const QUOTE_EMAIL = "sales.colombopvc@gmail.com";
+const QUOTE_EMAIL = "sales@colombopvc.lk";
 
 export default function FAQsPage() {
   const [openIndex, setOpenIndex] = useState(null);
@@ -370,7 +370,7 @@ export default function FAQsPage() {
               </div>
               {[
                 { icon:"📞", label:"Call us", value:"077 686 7877 (Hot line)", href:"tel:94776867877" },
-                { icon:"✉️", label:"Email", value:"sales.colombopvc@gmail.com", href:"mailto:sales.colombopvc@gmail.com" },
+                { icon:"✉️", label:"Email", value:"sales@colombopvc.lk", href:"mailto:sales@colombopvc.lk" },
               ].map(({ icon, label, value, href }) => (
                 <a key={label} href={href} style={{
                   display:"flex", alignItems:"center", gap:12,
