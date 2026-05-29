@@ -51,19 +51,29 @@ export default function ShopClient() {
   const searchDebounceRef = useRef(null);
 
   const fetchItemsList = useCallback(
-    (pageNumber, searchText, size) => {
+    (pageNumber, searchText, size, signal) => {
       setItemsLoading(true);
       setItemsError(null);
-      getAllItemsForWeb({
+      return getAllItemsForWeb({
         pageNumber,
         pageSize: size,
         categoryId: selectedCategoryId ?? undefined,
         subCategoryId: selectedSubCategoryId ?? undefined,
         searchText: searchText && searchText.trim() ? searchText.trim() : undefined,
+        signal,
       })
-        .then(({ totalCount, items }) => setItemsData({ totalCount, items }))
-        .catch((err) => setItemsError(err.message || "Failed to load products"))
-        .finally(() => setItemsLoading(false));
+        .then(({ totalCount, items }) => {
+          if (signal?.aborted) return;
+          setItemsData({ totalCount, items });
+        })
+        .catch((err) => {
+          if (signal?.aborted || err?.name === "AbortError") return;
+          setItemsError(err.message || "Failed to load products");
+        })
+        .finally(() => {
+          if (signal?.aborted) return;
+          setItemsLoading(false);
+        });
     },
     [selectedCategoryId, selectedSubCategoryId]
   );
@@ -85,14 +95,28 @@ export default function ShopClient() {
     [searchParams, router]
   );
 
+  const productsTopRef = useRef(null);
+
+  const scrollToProductsTop = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const el = productsTopRef.current;
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: Math.max(top, 0), behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, []);
+
   const handlePageChange = useCallback(
     (event, value) => {
       const params = new URLSearchParams(searchParams.toString());
       if (value <= 1) params.delete("page");
       else params.set("page", String(value));
       router.replace(params.toString() ? `/shop?${params.toString()}` : "/shop", { scroll: false });
+      scrollToProductsTop();
     },
-    [searchParams, router]
+    [searchParams, router, scrollToProductsTop]
   );
 
   const handlePageSizeChange = useCallback(
@@ -135,10 +159,29 @@ export default function ShopClient() {
     }
   }, [selectedCategoryId]);
 
-  // Fetch items when page, search (URL), category, or pageSize change
+  // Fetch items when page, search (URL), category, or pageSize change.
+  // Debounced + abortable so rapid changes (typing, clicking filters) coalesce
+  // into a single in-flight request and stale responses are cancelled.
   useEffect(() => {
-    fetchItemsList(currentPage, queryParam, pageSize);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetchItemsList(currentPage, queryParam, pageSize, controller.signal);
+    }, 250);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [currentPage, queryParam, selectedCategoryId, selectedSubCategoryId, pageSize, fetchItemsList]);
+
+  // Scroll to top of product list when the page number changes (after initial mount).
+  // Covers pagination via buttons, direct URL changes, and back/forward navigation.
+  const previousPageRef = useRef(currentPage);
+  useEffect(() => {
+    if (previousPageRef.current !== currentPage) {
+      previousPageRef.current = currentPage;
+      scrollToProductsTop();
+    }
+  }, [currentPage, scrollToProductsTop]);
 
   // Sync searchTerm from URL (e.g. back button or initial load)
   useEffect(() => {
@@ -335,7 +378,7 @@ export default function ShopClient() {
             />
           </div>
 
-          <section className="flex-1 min-w-0">
+          <section ref={productsTopRef} className="flex-1 min-w-0 scroll-mt-20">
             {itemsError && (
               <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 p-4 text-rose-800 text-sm">
                 {itemsError}

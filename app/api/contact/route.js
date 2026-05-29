@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-const DEFAULT_TO = "sales.colombopvc@gmail.com";
+const DEFAULT_TO = "sales@colombopvc.lk";  
 
 const MAX = { name: 200, email: 254, phone: 40, subject: 200, message: 8000 };
 
