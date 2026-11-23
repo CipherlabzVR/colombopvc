@@ -29,26 +29,43 @@ export default function ProductGrid({ products, onProductClick }) {
           qty: 1,
         });
         const lineGross = baseUnit;
-        const promoRow = computeBestCombinedLinePromotion(
-          lineGross,
-          1,
-          product.categoryId,
-          product.id,
-          rules,
-          productRules,
-        );
-        const saleUnit = promoRow.subTotal;
         const wholesaleAtOne = wholesaleAppliesToCartLine({
           ...product,
           price: offer.price,
           qty: 1,
         });
-        const showPromo =
+        const apiOriginal = Number(product.originalPrice);
+        const apiSale = Number(product.discountPrice);
+        const useApiPromo =
           !offer.isEntirelyOutOfStock &&
-          promoRow.totalDiscount > 0 &&
-          saleUnit < lineGross - 0.001;
-        const discountLabel =
-          showPromo && promoRow.totalDiscount > 0
+          offer.itemSubImageId == null &&
+          !wholesaleAtOne &&
+          Number.isFinite(apiOriginal) &&
+          Number.isFinite(apiSale) &&
+          apiSale > 0 &&
+          apiSale < lineGross - 0.001 &&
+          Math.abs(lineGross - apiOriginal) < 0.05;
+        const promoRow = useApiPromo
+          ? null
+          : computeBestCombinedLinePromotion(
+              lineGross,
+              1,
+              product.categoryId,
+              product.id,
+              rules,
+              productRules,
+            );
+        const saleUnit = useApiPromo ? apiSale : promoRow.subTotal;
+        const showPromo = useApiPromo
+          ? true
+          : !offer.isEntirelyOutOfStock &&
+            promoRow.totalDiscount > 0 &&
+            saleUnit < lineGross - 0.001;
+        const discountLabel = useApiPromo
+          ? (Number(product.discountPercentage) >= 1
+              ? `${Math.round(Number(product.discountPercentage))}% off`
+              : `Save ${formatRs(apiOriginal - apiSale)}`)
+          : showPromo && promoRow.totalDiscount > 0
             ? formatPromotionDiscountLabel(
                 promoRow.discountKind,
                 promoRow.ruleValue,

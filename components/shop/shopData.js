@@ -322,7 +322,13 @@ export function mapApiItemToProduct(item, categoryName = "", subCategoryName = "
     itemSubImages: subImages,
     category: categoryName,
     subcategory: subCategoryName,
-    description: item.description ?? "",
+    description: item.description ?? item.Description ?? "",
+    originalPrice: parseOptionalPositiveDecimal(item.originalPrice ?? item.OriginalPrice),
+    discountPrice: parseOptionalPositiveDecimal(item.discountPrice ?? item.DiscountPrice),
+    discountPercentage: (() => {
+      const n = Number(item.discountPercentage ?? item.DiscountPercentage);
+      return Number.isFinite(n) ? n : null;
+    })(),
     badge: subCategoryName || null,
   };
 }

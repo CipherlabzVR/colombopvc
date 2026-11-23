@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { fetchLatestWebItems } from "@/lib/shopApi";
-import { fetchCategoryDiscountRules, fetchProductDiscountRules } from "@/lib/promotionsApi";
-import { computeBestCombinedLinePromotion, formatPromotionDiscountLabel } from "@/lib/categoryPromotionPricing";
 import {
   mapApiItemToProduct,
   formatRs,
@@ -38,15 +36,11 @@ function SkeletonCard() {
 
 /**
  * Latest web-listed in-stock items (newest first from API), capped for the home grid.
- * Unit basis uses wholesale-at-qty-1 when applicable.
+ * Sale prices come from the catalog response. Wholesale at qty 1 still uses the wholesale unit.
  * @returns {Promise<Array<{ product: object, image: string, lineGross: number, saleTotal: number, pct: number, hasLinePromo: boolean, discountLabel: string }>>}
  */
 async function loadShowcaseItems() {
-  const [categoryRules, productRules, { items: allRaw }] = await Promise.all([
-    fetchCategoryDiscountRules(),
-    fetchProductDiscountRules(),
-    fetchLatestWebItems({ pageSize: LATEST_FETCH_BUFFER }),
-  ]);
+  const { items: allRaw } = await fetchLatestWebItems({ pageSize: LATEST_FETCH_BUFFER });
 
   const enriched = [];
 
@@ -65,28 +59,29 @@ async function loadShowcaseItems() {
       qty: 1,
     });
     const lineGross = basisUnit;
-    const row = computeBestCombinedLinePromotion(
-      lineGross,
-      1,
-      product.categoryId,
-      product.id,
-      categoryRules,
-      productRules,
-    );
-    const saleTotal = row.subTotal;
-    const hasLinePromo = row.totalDiscount > 0 && saleTotal < lineGross - 0.005;
-    const pct = lineGross > 0 ? Math.round((row.totalDiscount / lineGross) * 100) : 0;
+    const apiOriginal = Number(product.originalPrice);
+    const apiSale = Number(product.discountPrice);
+    const hasLinePromo =
+      offer.itemSubImageId == null &&
+      Number.isFinite(apiOriginal) &&
+      Number.isFinite(apiSale) &&
+      apiSale > 0 &&
+      apiSale < apiOriginal - 0.005 &&
+      Math.abs(basisUnit - apiOriginal) < 0.05;
+    const saleTotal = hasLinePromo ? apiSale : lineGross;
+    const shownGross = hasLinePromo ? apiOriginal : lineGross;
+    const pct = hasLinePromo
+      ? Math.round(Number(product.discountPercentage) || ((apiOriginal - apiSale) / apiOriginal) * 100)
+      : 0;
     let discountLabel = "";
     if (hasLinePromo) {
-      discountLabel =
-        formatPromotionDiscountLabel(row.discountKind, row.ruleValue, row.totalDiscount) ||
-        (pct >= 1 ? `${pct}% off` : `Save ${formatRs(row.totalDiscount)}`);
+      discountLabel = pct >= 1 ? `${pct}% off` : `Save ${formatRs(apiOriginal - apiSale)}`;
     }
 
     enriched.push({
       product: { ...product, image: offer.image || product.image },
       image: offer.image || product.image,
-      lineGross,
+      lineGross: shownGross,
       saleTotal,
       pct,
       hasLinePromo,
