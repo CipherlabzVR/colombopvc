@@ -160,15 +160,11 @@ export default function ShopClient() {
   }, [selectedCategoryId]);
 
   // Fetch items when page, search (URL), category, or pageSize change.
-  // Debounced + abortable so rapid changes (typing, clicking filters) coalesce
-  // into a single in-flight request and stale responses are cancelled.
+  // Abort the previous request so rapid filter changes keep only the latest response.
   useEffect(() => {
     const controller = new AbortController();
-    const timer = setTimeout(() => {
-      fetchItemsList(currentPage, queryParam, pageSize, controller.signal);
-    }, 250);
+    fetchItemsList(currentPage, queryParam, pageSize, controller.signal);
     return () => {
-      clearTimeout(timer);
       controller.abort();
     };
   }, [currentPage, queryParam, selectedCategoryId, selectedSubCategoryId, pageSize, fetchItemsList]);
@@ -278,6 +274,22 @@ export default function ShopClient() {
     },
     [router, searchParams]
   );
+
+  const openQuickView = useCallback((product) => {
+    setQuickViewProduct(product);
+    if (!product?.id || String(product.description || "").trim()) return;
+    resolveWebItemById(product.id)
+      .then((raw) => {
+        if (!raw) return;
+        setQuickViewProduct((current) => {
+          if (!current || Number(current.id) !== Number(product.id)) return current;
+          const catName = categoryNames.byCat.get(raw.categoryId ?? raw.CategoryId) ?? current.category;
+          const subName = categoryNames.bySub.get(raw.subCategoryId ?? raw.SubCategoryId) ?? current.subcategory;
+          return mapApiItemToProduct(raw, catName, subName) ?? current;
+        });
+      })
+      .catch(() => {});
+  }, [categoryNames]);
 
   const handleClearFilters = useCallback(() => {
     replaceFilters({ category: null, sub: null });
@@ -411,7 +423,7 @@ export default function ShopClient() {
                 </div>
                 <ProductGrid
                   products={products}
-                  onProductClick={setQuickViewProduct}
+                  onProductClick={openQuickView}
                 />
                 <ShopPagination
                   currentPage={safePage}

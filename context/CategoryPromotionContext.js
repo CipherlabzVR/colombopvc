@@ -39,7 +39,11 @@ export function CategoryPromotionProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    refresh();
+    // Let the product catalog request reach the API before promotion calls.
+    const timer = setTimeout(() => {
+      refresh();
+    }, 800);
+    return () => clearTimeout(timer);
   }, [refresh]);
 
   const value = useMemo(
